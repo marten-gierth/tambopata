@@ -63,13 +63,12 @@ export default function DayNightGlobe() {
         size: 0.1,
         color: 'white'
       },
-      {
-        lat: 0, // Initial latitude for the sun marker
-        lng: 0, // Initial longitude for the sun marker
-        size: 0.3, // Size of the sun marker
-        color: 'yellow', // Color of the sun marker
-        id: 'sun' // Unique ID for the sun marker
-      }
+        lat: 0,
+        lng: 0,
+        size: 0.3,
+        color: 'yellow',
+        id: 'sun'
+      }*/
     ];
     globeRef.current = Globe;
     scene.add(Globe);
@@ -182,7 +181,7 @@ export default function DayNightGlobe() {
 
       // Clouds Constants
       const CLOUDS_ALT = 0.015; // Altitude of the clouds relative to globe radius
-      const CLOUDS_ROTATION_SPEED = -0.006; // Rotation speed of clouds in degrees per frame
+      const CLOUDS_ROTATION_SPEED = -0.0045; // Rotation speed of clouds in degrees per frame
 
       // Create Clouds Mesh
       // A sphere slightly larger than the globe to represent clouds
@@ -314,7 +313,7 @@ export default function DayNightGlobe() {
   return (
       <div ref={mountRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
         {/* Display UTC time */}
-        <div style={{
+        {/*<div style={{
           position: 'absolute',
           bottom: '10px',
           right: '10px',
@@ -327,7 +326,7 @@ export default function DayNightGlobe() {
           zIndex: 100 // Ensure it's above the canvas
         }}>
           UTC Time: {utcTime}
-        </div>
+        </div>*/}
       </div>
   );
 }
