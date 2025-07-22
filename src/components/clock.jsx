@@ -2,16 +2,22 @@ import { DateTime } from 'luxon';
 import { useState, useEffect } from 'react';
 
 const Clock = () => {
-    const [diffToBackHome, setDiffToBackHome] = useState({});
-    const [dresdenTime, setDresdenTime] = useState('');
-    const [limaTime, setLimaTime] = useState('');
-    const [diffInHours, setDiffInHours] = useState(0);
+    // Initialize states with immediate calculations
+    const initialDresden = DateTime.now().setZone('Europe/Berlin');
+    const initialLima = DateTime.now().setZone('America/Lima');
+    const targetDate = DateTime.fromISO('2025-11-18T00:00:00', { zone: 'America/Lima' });
+
+    const [dresdenTime, setDresdenTime] = useState(initialDresden.toFormat('HH:mm'));
+    const [limaTime, setLimaTime] = useState(initialLima.toFormat('HH:mm'));
+    const [diffInHours, setDiffInHours] = useState((initialDresden.offset - initialLima.offset) / 60);
+    const [diffToBackHome, setDiffToBackHome] = useState(
+        targetDate.diff(initialLima, ['months', 'weeks', 'days', 'hours', 'minutes', 'seconds']).toObject()
+    );
 
     useEffect(() => {
         const interval = setInterval(() => {
             const dresden = DateTime.now().setZone('Europe/Berlin');
             const lima = DateTime.now().setZone('America/Lima');
-            const targetDate = DateTime.fromISO('2025-11-18T00:00:00', { zone: 'America/Lima' });
 
             setDresdenTime(dresden.toFormat('HH:mm'));
             setLimaTime(lima.toFormat('HH:mm'));
