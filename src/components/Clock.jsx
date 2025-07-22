@@ -32,9 +32,9 @@ const Clock = () => {
 
     return (
         <>
-            <p> {limaTime} Tambopata +{diffInHours}h | Dresden {dresdenTime} </p>
+            <p> 🕒 {limaTime} (Tambopata) | {dresdenTime} (Dresden +{diffInHours}h) </p>
             <p>
-                Rückflug in: {Math.floor(diffToBackHome.months || 0)} Monate, {Math.floor(diffToBackHome.weeks || 0)} Wochen, {Math.floor(diffToBackHome.days || 0)} Tage{/*, {Math.floor(diffToBackHome.hours || 0)} Stunden, {Math.floor(diffToBackHome.minutes || 0)} Minuten, {Math.floor(diffToBackHome.seconds || 0)} Sekunden*/}
+                ✈️ Rückflug: {Math.floor(diffToBackHome.months || 0)} Monate, {Math.floor(diffToBackHome.weeks || 0)} Wochen, {Math.floor(diffToBackHome.days || 0)} Tage{/*, {Math.floor(diffToBackHome.hours || 0)} Stunden, {Math.floor(diffToBackHome.minutes || 0)} Minuten, {Math.floor(diffToBackHome.seconds || 0)} Sekunden*/}
             </p>
         </>
     );

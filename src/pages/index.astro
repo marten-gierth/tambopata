@@ -9,43 +9,88 @@ import WorldGlobe from '../components/WorldGlobe.jsx';
     <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
     <meta name="viewport" content="width=device-width"/>
     <meta name="generator" content={Astro.generator}/>
-    <title>Tambopata - Dresden</title>
+    <title>Tambopata → Dresden</title>
 </head>
 <style>
-  body {
-    position: relative;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-      color: white;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    html, body {
+        overflow-x: hidden;
+    }
 
-  }
+    body {
+        background: black;
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
 
-  .background-globe {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: -1;
-    pointer-events: auto;
-  }
+    main {
+        position: relative;
+        margin: 0;
+        padding: 0;
 
-  .content {
-    position: relative;
-    z-index: 1;
-    padding: 2rem;
-  }
+    }
+
+    h1 {
+        font-size: clamp(1.8rem, 5vw, 3rem);
+    }
+
+    .background-globe {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: -1;
+        pointer-events: auto;
+    }
+
+    .content {
+        position: relative;
+        z-index: 1;
+        padding: 2rem;
+    }
+
+    @media (max-width: 960px) {
+        .content {
+            padding: 1rem;
+        }
+    }
+
+
+    footer {
+        position: absolute;
+        bottom: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        height: 10px;
+        z-index: 2;
+        text-align: center;
+        color: white;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+    }
+
+    a {
+        color: white;
+        text-decoration: underline;
+    }
 </style>
-
 <body>
-  <div class="background-globe">
-    <WorldGlobe client:only/>
-  </div>
-  <div class="content">
-    <h1>Tambopata - Dresden</h1>
-      <Clock client:load />
-  </div>
+<main>
+    <div class="background-globe">
+        <WorldGlobe client:only/>
+    </div>
+    <div class="content">
+        <h1>🌳 Tambopata → 🏠 Dresden</h1>
+        <Clock client:load/>
+    </div>
+</main>
+<footer>
+    <p>
+        <a href="https://martengierth.de/legal/" target="_blank" rel="noopener noreferrer">Legal Notice</a> |
+        Using <a href="https://github.com/vasturiano/three-globe" target="_blank"
+                 rel="noopener noreferrer">three-globe</a>
+    </p>
+</footer>
 </body>
 </html>
