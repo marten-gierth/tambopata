@@ -1,35 +1,45 @@
 // Imports
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import ThreeGlobe from 'three-globe';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { DateTime } from 'luxon'; // Corrected Import DateTime from luxon
 
 // Component Declaration
 export default function DayNightGlobe() {
   const mountRef = useRef();
   const materialRef = useRef();
   const globeRef = useRef();
+  const [utcTime, setUtcTime] = useState(''); // State to store and display UTC time
 
   // useEffect Hook
   useEffect(() => {
     // Initial Constants and Three.js Setup
-    const VELOCITY = 1; // minutes per frame (not directly used in current sun position logic, but kept for context)
 
     const scene = new THREE.Scene();
     const renderer = new THREE.WebGLRenderer({ antialias: true }); // Enable antialiasing for smoother edges
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio)); // Set pixel ratio for high-DPI screens
+
+    // Conditionally set renderer size and pixel ratio only if window is defined
+    if (typeof window !== 'undefined') {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    }
     mountRef.current.appendChild(renderer.domElement);
 
     // Camera Setup
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); // Added FOV, near, and far planes
-    camera.position.z = 400;
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000); // Initialize aspect ratio to 1, will be updated in handleResize
+    camera.position.z = 400; // Adjusted camera Z position further back for a better initial fit
+
+    // Conditionally update camera aspect ratio only if window is defined
+    if (typeof window !== 'undefined') {
+      camera.aspect = window.innerWidth / window.innerHeight;
+    }
     camera.updateProjectionMatrix();
 
     // OrbitControls Setup
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.minDistance = 200; // Minimum zoom distance
-    controls.maxDistance = 800; // Maximum zoom distance
+    controls.minDistance = 200; // Minimum zoom distance (still relevant for initial position)
+    controls.maxDistance = 800; // Maximum zoom distance (still relevant for initial position)
     controls.zoomSpeed = 0.5; // Slows down zooming for smoother scroll behavior
     controls.enableDamping = true; // Enables smooth damping
     controls.dampingFactor = 0.05; // Damping factor for smooth movement
@@ -40,7 +50,6 @@ export default function DayNightGlobe() {
     const Globe = new ThreeGlobe();
 
     // Markers Data
-    // Added the sun marker back in and made its color yellow
     const markers = [
       {
         lat: -12.8617,
@@ -94,8 +103,8 @@ export default function DayNightGlobe() {
         uniform sampler2D nightTexture; // Night texture
         uniform vec2 sunPosition; // Sun's longitude and latitude
         uniform vec2 globeRotation; // Globe's current rotation (from camera perspective)
-        varying vec3 vNormal; // Interpolated normal from vertex shader
-        varying vec2 vUv; // Interpolated UV from vertex shader
+        varying vec3 vNormal; // Normal in view space
+        varying vec2 vUv;
 
         // Convert degrees to radians
         float toRad(in float a) {
@@ -148,20 +157,21 @@ export default function DayNightGlobe() {
     };
 
     // Loading Textures and Material Setup
-    // Use Promise.all to load all textures concurrently
+    // Use Promise.all to load all textures concurrently from the new 'assets/worldGlobe/' path
     Promise.all([
       new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-blue-marble.jpg'),
       new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-night.jpg'),
       new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-topology.png'),
-    ]).then(([dayTexture, nightTexture, heightTexture]) => {
+      new THREE.TextureLoader().loadAsync('assets/worldGlobe/clouds.png')
+    ]).then(([dayTexture, nightTexture, heightTexture, cloudsTexture]) => { // Destructure all loaded textures
       // Create the ShaderMaterial with loaded textures and uniforms
       const material = new THREE.ShaderMaterial({
         uniforms: {
           dayTexture: { value: dayTexture },
           nightTexture: { value: nightTexture },
           heightTexture: { value: heightTexture },
-          sunPosition: { value: new THREE.Vector2() }, // Initialize sun position uniform
-          globeRotation: { value: new THREE.Vector2() } // Initialize globe rotation uniform
+          sunPosition: { value: new THREE.Vector2() },
+          globeRotation: { value: new THREE.Vector2() }
         },
         vertexShader: dayNightShader.vertexShader,
         fragmentShader: dayNightShader.fragmentShader
@@ -171,8 +181,7 @@ export default function DayNightGlobe() {
       Globe.globeMaterial(material); // Apply the custom material to the globe
 
       // Clouds Constants
-      const CLOUDS_IMG_URL = 'assets/worldGlobe/clouds.png';
-      const CLOUDS_ALT = 0.01; // Altitude of the clouds relative to globe radius
+      const CLOUDS_ALT = 0.015; // Altitude of the clouds relative to globe radius
       const CLOUDS_ROTATION_SPEED = -0.006; // Rotation speed of clouds in degrees per frame
 
       // Create Clouds Mesh
@@ -181,71 +190,110 @@ export default function DayNightGlobe() {
           new THREE.SphereGeometry(Globe.getGlobeRadius() * (1 + CLOUDS_ALT), 75, 75)
       );
 
-      // Load clouds texture and apply to material
-      new THREE.TextureLoader().load(CLOUDS_IMG_URL, cloudsTexture => {
-        Clouds.material = new THREE.MeshPhongMaterial({
-          map: cloudsTexture,
-          transparent: true, // Enable transparency for the clouds
-          opacity: 0.3 // Adjust opacity as needed
-        });
-      }, undefined, error => {
-        console.error("Failed to load clouds texture:", error); // Error handling for clouds texture
+      // Apply clouds texture to material
+      Clouds.material = new THREE.MeshPhongMaterial({
+        map: cloudsTexture, // Use the loaded cloudsTexture
+        transparent: true, // Enable transparency for the clouds
+        opacity: 0.4
       });
 
       // Add clouds to the globe (as a child of the globe object)
       Globe.add(Clouds);
 
-      // Animation Loop Function
+      let lastRenderedMinute = -1; // To track minute changes for sun update
+
+      // Animation Loop Function - (starts only after all textures are loaded)
       (function animate() {
-        // Update sun position in the shader uniforms
-        const [lng, lat] = sunPosAt();
-        material.uniforms.sunPosition.value.set(lng, lat);
+        const now = DateTime.utc();
+        const currentMinute = now.minute;
 
-        // Update the sun marker's position on the globe
-        const sunMarker = markers.find(m => m.id === 'sun');
-        if (sunMarker) {
-          sunMarker.lng = lng;
-          sunMarker.lat = lat;
+        // Only update sun position and marker if the minute has changed
+        if (currentMinute !== lastRenderedMinute) {
+          const [lng, lat, currentTime] = sunPosAt(now); // Get sun position based on current real UTC time
+          material.uniforms.sunPosition.value.set(lng, lat);
+
+          const sunMarker = markers.find(m => m.id === 'sun');
+          if (sunMarker) {
+            sunMarker.lng = lng;
+            sunMarker.lat = lat;
+          }
+          Globe.pointsData(markers); // Update marker data
+          setUtcTime(currentTime); // Update displayed UTC time
+
+          lastRenderedMinute = currentMinute; // Store the current minute
         }
-        Globe.pointsData(markers); // Re-set points data to update marker positions
 
-        controls.update(); // Update OrbitControls for smooth camera movement
-
-        // Get camera's geographical coordinates and pass to shader for correct day/night orientation
+        controls.update(); // Always update controls for smooth rotation
         const camGeo = Globe.toGeoCoords(camera.position);
         material.uniforms.globeRotation.value.set(camGeo.lng, camGeo.lat);
 
-        // Rotate the clouds
+        // Clouds always rotate smoothly
         Clouds.rotation.y += CLOUDS_ROTATION_SPEED * Math.PI / 180;
 
-        renderer.render(scene, camera); // Render the scene
-        requestAnimationFrame(animate); // Request next animation frame
+        renderer.render(scene, camera); // Always render
+        requestAnimationFrame(animate);
       })();
     }).catch(error => {
-      console.error("Failed to load main textures:", error); // Basic error handling for main textures
+      console.error("Failed to load textures:", error); // Consolidated error handling for all textures
     });
 
     // Sun Position Calculation Function
-    // Calculates the approximate longitude and latitude of the sun based on current UTC time
-    const sunPosAt = () => {
-      const now = new Date();
-      const hours = now.getUTCHours() + now.getUTCMinutes() / 60;
-      let longitude = (hours / 24) * 360 - 180; // Convert UTC hours to longitude
+    // Calculates the approximate longitude and latitude of the sun based on a given UTC DateTime object
+    const sunPosAt = (time) => {
+      // Custom offset for longitude calibration
+      // Adjust this value as needed to align the sun correctly with your visual expectation.
+      // A positive value shifts the sun westward, a negative value eastward.
+      const LONGITUDE_OFFSET_HOURS = 0;
+
+      // Apply the custom offset to the UTC time for calculation
+      // Negate the hours to reverse the direction of sun's movement
+      const adjustedTime = time.plus({ hours: LONGITUDE_OFFSET_HOURS });
+      const hours = adjustedTime.hour + adjustedTime.minute / 60; // Get hours and minutes from the adjusted DateTime object
+
+      // Invert the hours for longitude calculation to reverse the direction of movement
+      let longitude = ((-hours) / 24) * 360 - 180;
+
       if (longitude < -180) longitude += 360; // Ensure longitude is within -180 to 180 range
-      const latitude = 0; // Sun is assumed to be at the equator for simplicity
-      return [longitude, latitude];
+      if (longitude > 180) longitude -= 360; // Ensure longitude is within -180 to 180 range (handle wrap-around for positive values)
+
+
+      // Calculate day of the year for solar declination
+      const dayOfYear = adjustedTime.ordinal; // Luxon's ordinal property gives the day of the year (1-366)
+
+      // Solar declination formula (approximate)
+      // delta = 23.45 * sin(360/365 * (N - 81))
+      // N is the day of the year (1 for Jan 1st)
+      const latitude = 23.45 * Math.sin(THREE.MathUtils.degToRad(360 / 365 * (dayOfYear - 81)));
+
+      // Log the full calculation to the console
+      console.log('Sun Position Calculation:');
+      console.log('  Original UTC Time:', time.toFormat('yyyy-MM-dd HH:mm:ss UTC'));
+      console.log('  Applied Longitude Offset (hours):', LONGITUDE_OFFSET_HOURS);
+      console.log('  Adjusted UTC Time (for calculation):', adjustedTime.toFormat('yyyy-MM-dd HH:mm:ss UTC'));
+      console.log('  Hours (Adjusted UTC, negated for direction):', -hours); // Log the negated hours
+      console.log('  Day of Year:', dayOfYear);
+      console.log('  Calculated Longitude:', longitude);
+      console.log('  Calculated Latitude (Declination):', latitude);
+
+      // Return longitude, latitude, and original formatted UTC time for display
+      return [longitude, latitude, time.toFormat('HH:mm:ss UTC')];
     };
 
     // Handle window resize events for responsiveness
     const handleResize = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      renderer.setSize(width, height);
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
+      if (typeof window !== 'undefined') {
+        const width = window.innerWidth;
+        const height = window.innerHeight;
+        renderer.setSize(width, height);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      }
     };
 
-    window.addEventListener('resize', handleResize);
+    // Add and remove event listener conditionally
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', handleResize);
+    }
 
     // Cleanup Function
     // This runs when the component unmounts to free up resources
@@ -255,10 +303,31 @@ export default function DayNightGlobe() {
       }
       renderer.dispose();
       controls.dispose();
-      window.removeEventListener('resize', handleResize); // Remove resize listener
+      // Remove event listener conditionally
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', handleResize);
+      }
     };
   }, []); // Empty dependency array ensures this effect runs only once on mount
 
   // Return Statement
-  return <div ref={mountRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }} />;
+  return (
+      <div ref={mountRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
+        {/* Display UTC time */}
+        <div style={{
+          position: 'absolute',
+          bottom: '10px',
+          right: '10px',
+          color: 'white',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          padding: '8px 12px',
+          borderRadius: '8px',
+          fontFamily: 'Inter, sans-serif',
+          fontSize: '1em',
+          zIndex: 100 // Ensure it's above the canvas
+        }}>
+          UTC Time: {utcTime}
+        </div>
+      </div>
+  );
 }
