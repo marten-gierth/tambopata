@@ -63,13 +63,13 @@ export default function DayNightGlobe() {
         size: 0.1,
         color: 'white'
       },
-     /* {
-        lat: 0,
-        lng: 0,
-        size: 0.3,
-        color: 'yellow',
-        id: 'sun'
-      }*/
+      /* {
+         lat: 0,
+         lng: 0,
+         size: 0.3,
+         color: 'yellow',
+         id: 'sun'
+       }*/
     ];
     globeRef.current = Globe;
     scene.add(Globe);
