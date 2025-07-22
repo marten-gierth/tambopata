@@ -23,7 +23,7 @@ export default function DayNightGlobe() {
 
     // Camera Setup
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); // Added FOV, near, and far planes
-    camera.position.z = 500;
+    camera.position.z = 400;
     camera.updateProjectionMatrix();
 
     // OrbitControls Setup
@@ -33,6 +33,8 @@ export default function DayNightGlobe() {
     controls.zoomSpeed = 0.5; // Slows down zooming for smoother scroll behavior
     controls.enableDamping = true; // Enables smooth damping
     controls.dampingFactor = 0.05; // Damping factor for smooth movement
+    controls.enableZoom = false; // Deactivate the ability to zoom the map
+    controls.enablePan = false; // Deactivate the ability to pan/move the globe
 
     // Globe Initialization
     const Globe = new ThreeGlobe();
@@ -148,9 +150,9 @@ export default function DayNightGlobe() {
     // Loading Textures and Material Setup
     // Use Promise.all to load all textures concurrently
     Promise.all([
-      new THREE.TextureLoader().loadAsync('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-day.jpg'),
-      new THREE.TextureLoader().loadAsync('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg'),
-      new THREE.TextureLoader().loadAsync('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-topology.png'),
+      new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-blue-marble.jpg'),
+      new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-night.jpg'),
+      new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-topology.png'),
     ]).then(([dayTexture, nightTexture, heightTexture]) => {
       // Create the ShaderMaterial with loaded textures and uniforms
       const material = new THREE.ShaderMaterial({
@@ -167,6 +169,31 @@ export default function DayNightGlobe() {
 
       materialRef.current = material; // Store material reference
       Globe.globeMaterial(material); // Apply the custom material to the globe
+
+      // Clouds Constants
+      const CLOUDS_IMG_URL = 'assets/worldGlobe/clouds.png';
+      const CLOUDS_ALT = 0.01; // Altitude of the clouds relative to globe radius
+      const CLOUDS_ROTATION_SPEED = -0.006; // Rotation speed of clouds in degrees per frame
+
+      // Create Clouds Mesh
+      // A sphere slightly larger than the globe to represent clouds
+      const Clouds = new THREE.Mesh(
+          new THREE.SphereGeometry(Globe.getGlobeRadius() * (1 + CLOUDS_ALT), 75, 75)
+      );
+
+      // Load clouds texture and apply to material
+      new THREE.TextureLoader().load(CLOUDS_IMG_URL, cloudsTexture => {
+        Clouds.material = new THREE.MeshPhongMaterial({
+          map: cloudsTexture,
+          transparent: true, // Enable transparency for the clouds
+          opacity: 0.3 // Adjust opacity as needed
+        });
+      }, undefined, error => {
+        console.error("Failed to load clouds texture:", error); // Error handling for clouds texture
+      });
+
+      // Add clouds to the globe (as a child of the globe object)
+      Globe.add(Clouds);
 
       // Animation Loop Function
       (function animate() {
@@ -188,11 +215,14 @@ export default function DayNightGlobe() {
         const camGeo = Globe.toGeoCoords(camera.position);
         material.uniforms.globeRotation.value.set(camGeo.lng, camGeo.lat);
 
+        // Rotate the clouds
+        Clouds.rotation.y += CLOUDS_ROTATION_SPEED * Math.PI / 180;
+
         renderer.render(scene, camera); // Render the scene
         requestAnimationFrame(animate); // Request next animation frame
       })();
     }).catch(error => {
-      console.error("Failed to load textures:", error); // Basic error handling for texture loading
+      console.error("Failed to load main textures:", error); // Basic error handling for main textures
     });
 
     // Sun Position Calculation Function
