@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import ThreeGlobe from 'three-globe';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {DateTime} from 'luxon'; // Corrected Import DateTime from luxon
+import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Component Declaration
 export default function DayNightGlobe() {
@@ -39,11 +40,11 @@ export default function DayNightGlobe() {
         // OrbitControls Setup
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.minDistance = 200; // Minimum zoom distance (still relevant for initial position)
-        controls.maxDistance = 800; // Maximum zoom distance (still relevant for initial position)
+        controls.maxDistance = 500; // Maximum zoom distance (still relevant for initial position)
         controls.zoomSpeed = 0.5; // Slows down zooming for smoother scroll behavior
         controls.enableDamping = true; // Enables smooth damping
         controls.dampingFactor = 0.05; // Damping factor for smooth movement
-        controls.enableZoom = false; // Deactivate the ability to zoom the map
+        controls.enableZoom = true; // Deactivate the ability to zoom the map
         controls.enablePan = false; // Deactivate the ability to pan/move the globe
 
         // Globe Initialization
@@ -54,14 +55,14 @@ export default function DayNightGlobe() {
             {
                 lat: -12.8617,
                 lng: -69.4948,
-                size: 0.1,
-                color: 'white'
+                size: 0,
+                /*color: 'white',*/
             },
             {
                 lat: 51.0504,
                 lng: 13.7373,
-                size: 0.1,
-                color: 'white'
+                size: 0,
+                /*color: 'white',*/
             },
             /* {
                lat: 0,
@@ -71,6 +72,7 @@ export default function DayNightGlobe() {
                id: 'sun'
              }*/
         ];
+
         globeRef.current = Globe;
         scene.add(Globe);
 
@@ -180,9 +182,8 @@ export default function DayNightGlobe() {
             materialRef.current = material; // Store material reference
             Globe.globeMaterial(material); // Apply the custom material to the globe
 
-            // Clouds Constants
-            const CLOUDS_ALT = 0.013; // Altitude of the clouds relative to globe radius
-            const CLOUDS_ROTATION_SPEED = -0.003; // Rotation speed of clouds in degrees per frame
+            const CLOUDS_ALT = 0.02;
+            const CLOUDS_ROTATION_SPEED = -0.003;
 
             // Create Clouds Mesh
             // A sphere slightly larger than the globe to represent clouds
@@ -197,13 +198,49 @@ export default function DayNightGlobe() {
                 opacity: 0.6
             });
 
-            // Add clouds to the globe (as a child of the globe object)
             Globe.add(Clouds);
 
-            let lastRenderedMinute = -1; // To track minute changes for sun update
+            const latLngToVector3 = (lat, lng, radius) => {
+                const phi = (90 - lat) * (Math.PI / 180);
+                const theta = (lng + 180) * (Math.PI / 180);
+                const x = -(radius * Math.sin(phi) * Math.cos(theta));
+                const z = radius * Math.sin(phi) * Math.sin(theta);
+                const y = radius * Math.cos(phi);
+                return new THREE.Vector3(x, y, z);
+            };
 
-            // Animation Loop Function - (starts only after all textures are loaded)
-            (function animate() {
+            function loadPins(scaleFactor = 1) {
+                const loader = new GLTFLoader();
+                markers.forEach(marker => {
+                    loader.load('assets/worldGlobe/pin.glb', gltf => {
+                        const pin = gltf.scene;
+
+                        // Get the coordinates object from the three-globe library
+                        const positionObj = globeRef.current.getCoords(marker.lat, marker.lng, 0);
+
+                        // Set the position of the pin.
+                        pin.position.set(positionObj.x, positionObj.y, positionObj.z);
+
+                        // Use pin.position for alignment.
+                        // Since pin.position is a THREE.Vector3, it has the .clone() method.
+                        const up = pin.position.clone().normalize();
+                        const target = new THREE.Vector3(0, 1, 0);
+                        const quaternion = new THREE.Quaternion().setFromUnitVectors(target, up);
+                        pin.quaternion.copy(quaternion);
+
+                        pin.scale.set(2 * scaleFactor, 2 * scaleFactor, 2 * scaleFactor);
+
+                        // Important: Add the pin to the Globe instance, not the scene.
+                        // This way, it rotates with the globe.
+                        globeRef.current.add(pin);
+                    });
+                });
+            }
+
+            let lastRenderedMinute = -1;
+
+            // Start animation loop first
+            function animate() {
                 const now = DateTime.utc();
                 const currentMinute = now.minute;
 
@@ -232,17 +269,17 @@ export default function DayNightGlobe() {
 
                 renderer.render(scene, camera); // Always render
                 requestAnimationFrame(animate);
-            })();
+            }
+
+            // Start animation
+            animate();
+            // Load pins after animation has started
+            loadPins(1.5);
         }).catch(error => {
-            console.error("Failed to load textures:", error); // Consolidated error handling for all textures
+            console.error("Failed to load textures:", error);
         });
 
-        // Sun Position Calculation Function
-        // Calculates the approximate longitude and latitude of the sun based on a given UTC DateTime object
         const sunPosAt = (time) => {
-            // Custom offset for longitude calibration
-            // Adjust this value as needed to align the sun correctly with your visual expectation.
-            // A positive value shifts the sun westward, a negative value eastward.
             const LONGITUDE_OFFSET_HOURS = 0;
 
             // Apply the custom offset to the UTC time for calculation
@@ -265,22 +302,11 @@ export default function DayNightGlobe() {
             // N is the day of the year (1 for Jan 1st)
             const latitude = 23.45 * Math.sin(THREE.MathUtils.degToRad(360 / 365 * (dayOfYear - 81)));
 
-            // Log the full calculation to the console
-            /*console.log('Sun Position Calculation:');
-             console.log(' UTC Time:', time.toFormat('yyyy-MM-dd HH:mm:ss UTC'));
-             console.log('  Applied Longitude Offset (hours):', LONGITUDE_OFFSET_HOURS);
-             console.log('  Adjusted UTC Time (for calculation):', adjustedTime.toFormat('yyyy-MM-dd HH:mm:ss UTC'));
-             console.log('  Hours (Adjusted UTC, negated for direction):', -hours); // Log the negated hours
-             console.log('  Day of Year:', dayOfYear);
-             console.log('  Calculated Longitude:', longitude);
-             console.log('  Calculated Latitude (Declination):', latitude);*/
             console.log(`Sun @ ${time.toFormat('yyyy-MM-dd HH:mm:ss')} UTC | Day ${dayOfYear} | Lon ${longitude.toFixed(2)} | Lat ${latitude.toFixed(2)}`);
 
-            // Return longitude, latitude, and original formatted UTC time for display
             return [longitude, latitude, time.toFormat('HH:mm:ss UTC')];
         };
 
-        // Handle window resize events for responsiveness
         const handleResize = () => {
             if (typeof window !== 'undefined') {
                 const width = window.innerWidth;
@@ -291,27 +317,22 @@ export default function DayNightGlobe() {
             }
         };
 
-        // Add and remove event listener conditionally
         if (typeof window !== 'undefined') {
             window.addEventListener('resize', handleResize);
         }
 
-        // Cleanup Function
-        // This runs when the component unmounts to free up resources
         return () => {
             if (mountRef.current && renderer.domElement) {
                 mountRef.current.removeChild(renderer.domElement);
             }
             renderer.dispose();
             controls.dispose();
-            // Remove event listener conditionally
             if (typeof window !== 'undefined') {
                 window.removeEventListener('resize', handleResize);
             }
         };
     }, []); // Empty dependency array ensures this effect runs only once on mount
 
-    // Return Statement
     return (
         <div ref={mountRef} style={{width: '100vw', height: '100vh', overflow: 'hidden'}}></div>
     );
