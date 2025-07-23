@@ -40,11 +40,11 @@ export default function DayNightGlobe() {
         // OrbitControls Setup
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.minDistance = 200; // Minimum zoom distance (still relevant for initial position)
-        controls.maxDistance = 800; // Maximum zoom distance (still relevant for initial position)
+        controls.maxDistance = 500; // Maximum zoom distance (still relevant for initial position)
         controls.zoomSpeed = 0.5; // Slows down zooming for smoother scroll behavior
         controls.enableDamping = true; // Enables smooth damping
         controls.dampingFactor = 0.05; // Damping factor for smooth movement
-        controls.enableZoom = false; // Deactivate the ability to zoom the map
+        controls.enableZoom = true; // Deactivate the ability to zoom the map
         controls.enablePan = false; // Deactivate the ability to pan/move the globe
 
         // Globe Initialization
@@ -72,6 +72,7 @@ export default function DayNightGlobe() {
                id: 'sun'
              }*/
         ];
+
         globeRef.current = Globe;
         scene.add(Globe);
 
@@ -268,7 +269,12 @@ export default function DayNightGlobe() {
 
                 renderer.render(scene, camera); // Always render
                 requestAnimationFrame(animate);
-            })();
+            }
+
+            // Start animation
+            animate();
+            // Load pins after animation has started
+            loadPins(1.5);
         }).catch(error => {
             console.error("Failed to load textures:", error);
         });
