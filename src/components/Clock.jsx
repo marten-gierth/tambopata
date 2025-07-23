@@ -1,11 +1,11 @@
-import { DateTime } from 'luxon';
-import { useState, useEffect } from 'react';
+import {DateTime} from 'luxon';
+import {useEffect, useState} from 'react';
 
 const Clock = () => {
     // Initialize states with immediate calculations
     const initialDresden = DateTime.now().setZone('Europe/Berlin');
     const initialLima = DateTime.now().setZone('America/Lima');
-    const targetDate = DateTime.fromISO('2025-11-18T00:00:00', { zone: 'America/Lima' });
+    const targetDate = DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'});
 
     const [dresdenTime, setDresdenTime] = useState(initialDresden.toFormat('HH:mm'));
     const [limaTime, setLimaTime] = useState(initialLima.toFormat('HH:mm'));
