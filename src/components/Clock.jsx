@@ -2,40 +2,63 @@ import {DateTime} from 'luxon';
 import {useEffect, useState} from 'react';
 
 const Clock = () => {
-    // Initialize states with immediate calculations
-    const initialDresden = DateTime.now().setZone('Europe/Berlin');
-    const initialLima = DateTime.now().setZone('America/Lima');
     const targetDate = DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'});
 
-    const [dresdenTime, setDresdenTime] = useState(initialDresden.toFormat('HH:mm'));
-    const [limaTime, setLimaTime] = useState(initialLima.toFormat('HH:mm'));
-    const [diffInHours, setDiffInHours] = useState((initialDresden.offset - initialLima.offset) / 60);
+    const nowGermany = DateTime.now().setZone('Europe/Berlin');
+    const nowPeru = DateTime.now().setZone('America/Lima');
+
+    const [germanyTime, setGermanyTime] = useState(nowGermany.toFormat('HH:mm'));
+    const [peruTime, setPeruTime] = useState(nowPeru.toFormat('HH:mm'));
+    const [diffInHours, setDiffInHours] = useState((nowGermany.offset - nowPeru.offset) / 60);
     const [diffToBackHome, setDiffToBackHome] = useState(
-        targetDate.diff(initialLima, ['months', 'weeks', 'days', 'hours', 'minutes', 'seconds']).toObject()
+        targetDate.diff(nowPeru, ['months', 'weeks', 'days']).toObject()
     );
 
     useEffect(() => {
         const interval = setInterval(() => {
-            const dresden = DateTime.now().setZone('Europe/Berlin');
-            const lima = DateTime.now().setZone('America/Lima');
+            const germany = DateTime.now().setZone('Europe/Berlin');
+            const peru = DateTime.now().setZone('America/Lima');
 
-            setDresdenTime(dresden.toFormat('HH:mm'));
-            setLimaTime(lima.toFormat('HH:mm'));
-            setDiffInHours((dresden.offset - lima.offset) / 60);
+            setGermanyTime(germany.toFormat('HH:mm'));
+            setPeruTime(peru.toFormat('HH:mm'));
+            setDiffInHours((germany.offset - peru.offset) / 60);
 
-            const diff = targetDate.diff(lima, ['months', 'weeks', 'days', 'hours', 'minutes', 'seconds']).toObject();
+            const diff = targetDate.diff(peru, ['months', 'weeks', 'days']).toObject();
             setDiffToBackHome(diff);
         }, 1000);
 
         return () => clearInterval(interval);
     }, []);
 
+    const formatUnit = (value, singular, plural) => {
+        const rounded = Math.floor(value || 0);
+        return `${rounded} ${rounded === 1 ? singular : plural}`;
+    };
+
     return (
         <>
-            <p> 🕒 {limaTime} (Tambopata) | {dresdenTime} (Dresden +{diffInHours}h) </p>
-            <p>
-                ✈️ Rückflug: {Math.floor(diffToBackHome.months || 0)} Monate, {Math.floor(diffToBackHome.weeks || 0)} Wochen, {Math.floor(diffToBackHome.days || 0)} Tage{/*, {Math.floor(diffToBackHome.hours || 0)} Stunden, {Math.floor(diffToBackHome.minutes || 0)} Minuten, {Math.floor(diffToBackHome.seconds || 0)} Sekunden*/}
+            <p style={{fontSize: '1.2rem', margin: '1rem 0'}}>
+                ✈️ Back home
+                in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
             </p>
+            <div
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'auto auto',
+                    gap: '0.25rem 0',
+                    alignItems: 'center',
+                    maxWidth: '300px',
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    🇵🇪<span style={{ textAlign: 'right', paddingLeft: '0.5rem' }}>{peruTime}</span>
+                </div>
+                <div>Tambopata, Peru</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    🇩🇪<span style={{ textAlign: 'right', paddingLeft: '0.5rem' }}>{germanyTime}</span>
+                </div>
+                <div>Dresden, Germany (+{diffInHours}h)</div>
+            </div>
         </>
     );
 };
