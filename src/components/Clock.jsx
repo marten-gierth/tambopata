@@ -69,66 +69,137 @@ const formatUnit = (value, singular, plural) => {
 /**
  * ✨ UI Component: Renders a single row of location information in columns.
  */
-const LocationRow = ({flag, time, name, sunEvent, currentWeather}) => (
-    <>
-        {/* Column 1 */}
-        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
-            {flag}<span style={{paddingLeft: '0.5rem'}}>{time}</span>
-        </div>
-        {/* Column 2 */}
-        <div>{name}</div>
-        {/* Column 3 */}
-        <div>{sunEvent?.icon} {sunEvent?.time}</div>
-        {/* Column 4 */}
-        <div>
-            {currentWeather?.icon}
-            {currentWeather?.temperature != null && ` ${currentWeather.temperature}°C`}
-        </div>
-    </>
-);
+const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
+    // Initialize state without accessing the window object.
+    const [windowWidth, setWindowWidth] = useState(0);
 
-// --- Main Component ---
-const Clock = () => {
-    const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'}), []);
-    const locations = useMemo(() => ['Tambopata', 'Dresden'], []);
+    useEffect(() => {
+        const handleResize = () => {
+            setWindowWidth(window.innerWidth);
+        };
+        handleResize();
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
-    const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate);
-    const weatherData = useWeatherData(locations);
+    const styles = {
+        container: {
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr auto',
+            gridTemplateRows: 'auto auto',
+            gridColumnGap: '0px',
+            gridRowGap: '1px',
+            fontFamily: 'Arial, sans-serif',
+            color: '#fff',
+            letterSpacing: '-0.5px',
+            maxWidth: '400px',
+            // Aligns left on large screens, centers on small
+            margin: windowWidth > 600 ? '10px' : '10px auto',
+        },
+        cell: {
+            padding: '1px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        flagCell: {
+            gridArea: '1 / 1 / 3 / 2',
+            fontSize: '2rem',
+        },
+        timeCell: {
+            gridArea: '1 / 2 / 2 / 3',
+            fontSize: '1.5rem',
+            padding: '0 0 0 10px',
+            fontWeight: 'bold',
+            justifyContent: 'flex-start',
+        },
+        nameCell: {
+            gridArea: '1 / 3 / 2 / 4',
+            fontSize: '1.2rem',
+            fontWeight: 'bold',
+            justifyContent: 'flex-end',
+        },
+        sunWeatherCell: {
+            gridArea: '2 / 2 / 3 / 4',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '5px 10px',
+        },
+        weatherSpan: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+        }
+    };
 
     return (
-        <>
-            <p style={{fontSize: '17px', margin: '0.5rem 0'}}>
-                ✈️ Back home
-                in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
-            </p>
-            <div
-                style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'auto auto auto auto',
-                    gap: '0.5rem 0.25rem',
-                    alignItems: 'center',
-                    whiteSpace: 'nowrap',
-                    maxWidth: '400px',
-                    paddingTop: '0.5rem',
-                }}
-            >
-                <LocationRow
-                    flag="🇵🇪"
-                    time={peruTime}
-                    name="Tambopata, Peru"
-                    sunEvent={weatherData.Tambopata?.sun}
-                    currentWeather={weatherData.Tambopata?.current}
-                />
-                <LocationRow
-                    flag="🇩🇪"
-                    time={germanyTime}
-                    name={`Dresden, Germany`}
-                    sunEvent={weatherData.Dresden?.sun}
-                    currentWeather={weatherData.Dresden?.current}
-                />
+        <div style={styles.container}>
+            {/* Cell 1: Flag */}
+            <div style={{...styles.cell, ...styles.flagCell}}>{flag}</div>
+
+            {/* Cell 2: Time */}
+            <div style={{...styles.cell, ...styles.timeCell}}>{time}</div>
+
+            {/* Cell 3: Name */}
+            <div style={{...styles.cell, ...styles.nameCell}}>{name}</div>
+
+            {/* Cell 4: Sun Event & Weather */}
+            <div style={{...styles.cell, ...styles.sunWeatherCell}}>
+                <span style={styles.weatherSpan}>
+                    {sunEvent?.icon} {sunEvent?.time}
+                </span>
+                <span style={styles.weatherSpan}>
+                    {currentWeather?.icon}
+                    {currentWeather?.temperature != null && ` ${currentWeather.temperature}°C`}
+                </span>
             </div>
-        </>
+        </div>
     );
 };
 
-export default Clock;
+// --- Main Component ---
+    const Clock = () => {
+        const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'}), []);
+        const locations = useMemo(() => ['Tambopata', 'Dresden'], []);
+
+        const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate);
+        const weatherData = useWeatherData(locations);
+
+        return (
+            <>
+                <p style={{fontSize: '17px', margin: '10px'}}>
+                    ✈️ Back home
+                    in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
+                </p>
+                <div
+                    /*   style={{
+                           display: 'grid',
+                           gridTemplateColumns: 'auto auto auto auto',
+                           gap: '0.5rem 0.25rem',
+                           alignItems: 'center',
+                           whiteSpace: 'nowrap',
+                           maxWidth: '400px',
+                           paddingTop: '0.5rem',
+                       }}*/
+                >
+                    <LocationRow
+                        flag="🇵🇪"
+                        time={peruTime}
+                        name="Tambopata, Peru"
+                        sunEvent={weatherData.Tambopata?.sun}
+                        currentWeather={weatherData.Tambopata?.current}
+                    />
+                    <LocationRow
+                        flag="🇩🇪"
+                        time={germanyTime}
+                        name={`Dresden, Germany`}
+                        sunEvent={weatherData.Dresden?.sun}
+                        currentWeather={weatherData.Dresden?.current}
+                    />
+                </div>
+            </>
+        );
+    };
+
+    export default Clock;
