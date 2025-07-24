@@ -1,31 +1,43 @@
 import {DateTime} from 'luxon';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {getCurrentWeatherForLocation, getNextSunEventForLocation} from '../services/weatherService.js';
+
 
 /**
  * ⏲️ Shared Clock Hook: Emits `now` every full minute.
+ *
+ * This updated version uses a self-scheduling `setTimeout` loop,
+ * a robust pattern that avoids potential drift from `setInterval`.
  */
 const useClock = () => {
     const [now, setNow] = useState(() => DateTime.now());
+    // Use a ref to hold the timeout ID, preventing re-renders from affecting it.
+    const timeoutIdRef = useRef(null);
 
     useEffect(() => {
-        const now = DateTime.now();
-        const msUntilNextMinute = (60 - now.second) * 1000 - now.millisecond;
+        // A function that schedules its own next run.
+        const scheduleNextTick = () => {
+            // Calculate the milliseconds until the next minute begins.
+            const currentNow = DateTime.now();
+            const msUntilNextMinute = (60 - currentNow.second) * 1000 - currentNow.millisecond;
 
-        let intervalId;
-
-        const timeoutId = setTimeout(() => {
-            setNow(DateTime.now());
-            intervalId = setInterval(() => {
+            // Set the timeout for the next update.
+            timeoutIdRef.current = setTimeout(() => {
                 setNow(DateTime.now());
-            }, 60 * 1000);
-        }, msUntilNextMinute);
-
-        return () => {
-            clearTimeout(timeoutId);
-            if (intervalId) clearInterval(intervalId);
+                scheduleNextTick(); // Reschedule the *next* tick after this one fires.
+            }, msUntilNextMinute);
         };
-    }, []);
+
+        // Start the scheduling loop.
+        scheduleNextTick();
+
+        // The cleanup function clears the timeout when the component unmounts.
+        return () => {
+            if (timeoutIdRef.current) {
+                clearTimeout(timeoutIdRef.current);
+            }
+        };
+    }, []); // The empty array ensures this effect runs only once.
 
     return now;
 };
@@ -49,41 +61,66 @@ const useTimeManager = (targetDate, now) => {
 };
 
 /**
- * ⚙️ Custom Hook: Fetches and manages ALL weather data (sun & current) for a list of locations.
+ * ⚙️ Custom Hook: Manages all weather data with separate update intervals.
+ *
+ * Current Weather: Fetched hourly.
+ * Sun Events: Fetched every minute, driven by the useClock hook.
  */
 const useWeatherData = (locations, now) => {
     const [weatherData, setWeatherData] = useState({});
 
+    // --- EFFECT 1: For HOURLY data (Current Weather) ---
+    // This effect runs only once to set up the hourly timer.
     useEffect(() => {
         let intervalId;
-        let sunIntervalId;
 
-        const fetchAllWeatherData = async () => {
+        const fetchCurrentWeather = async () => {
+            console.log('Fetching CURRENT weather...');
             try {
-                const promises = locations.flatMap(loc => [
-                    getNextSunEventForLocation(loc),
-                    getCurrentWeatherForLocation(loc)
-                ]);
+                const promises = locations.map(loc => getCurrentWeatherForLocation(loc));
                 const results = await Promise.all(promises);
-                const dataMap = locations.reduce((acc, loc, index) => {
-                    acc[loc] = {
-                        sun: results[index * 2],
-                        current: results[index * 2 + 1]
-                    };
-                    return acc;
-                }, {});
-                setWeatherData(dataMap);
+                setWeatherData(prev => {
+                    const updated = { ...prev };
+                    locations.forEach((loc, idx) => {
+                        if (!updated[loc]) updated[loc] = {};
+                        updated[loc].current = results[idx];
+                    });
+                    return updated;
+                });
             } catch (error) {
-                console.error('Failed to fetch weather data:', error);
+                console.error('Failed to fetch current weather:', error);
             }
         };
 
-        const fetchAllSunData = async () => {
+        // Calculate delay until the next full hour for the first scheduled fetch
+        const initialTime = DateTime.now();
+        const msUntilNextHour = (60 - initialTime.minute) * 60 * 1000 - initialTime.second * 1000 - initialTime.millisecond;
+
+        const timeoutId = setTimeout(() => {
+            fetchCurrentWeather();
+            intervalId = setInterval(fetchCurrentWeather, 60 * 60 * 1000); // Every hour
+        }, msUntilNextHour);
+
+        fetchCurrentWeather(); // Fetch once immediately on mount
+
+        // Cleanup function to clear timers when the component unmounts
+        return () => {
+            clearTimeout(timeoutId);
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [locations]); // Dependency array ensures this runs only if 'locations' changes
+
+
+    // --- EFFECT 2: For MINUTELY data (Sun Events) ---
+    // This effect is driven by the 'now' prop from useClock.
+    useEffect(() => {
+        const fetchSunData = async () => {
+            console.log('Fetching SUN data...');
             try {
                 const promises = locations.map(loc => getNextSunEventForLocation(loc));
                 const results = await Promise.all(promises);
                 setWeatherData(prev => {
-                    const updated = {...prev};
+                    const updated = { ...prev };
                     locations.forEach((loc, idx) => {
                         if (!updated[loc]) updated[loc] = {};
                         updated[loc].sun = results[idx];
@@ -95,29 +132,10 @@ const useWeatherData = (locations, now) => {
             }
         };
 
-        const msUntilNextHour = (60 - now.minute) * 60 * 1000 - now.second * 1000 - now.millisecond;
-        const msUntilNextMinute = (60 - now.second) * 1000 - now.millisecond;
+        // This runs every time 'now' from useClock updates, which is every minute.
+        fetchSunData();
 
-        const timeoutId = setTimeout(() => {
-            fetchAllWeatherData();
-            intervalId = setInterval(fetchAllWeatherData, 60 * 60 * 1000);
-        }, msUntilNextHour);
-
-        const sunTimeoutId = setTimeout(() => {
-            fetchAllSunData();
-            sunIntervalId = setInterval(fetchAllSunData, 60 * 1000);
-        }, msUntilNextMinute);
-
-        fetchAllWeatherData(); // fetch once immediately
-        fetchAllSunData();     // fetch once immediately
-
-        return () => {
-            clearTimeout(timeoutId);
-            clearTimeout(sunTimeoutId);
-            if (intervalId) clearInterval(intervalId);
-            if (sunIntervalId) clearInterval(sunIntervalId);
-        };
-    }, [locations, now]);
+    }, [now, locations]); // Dependency array ensures this re-runs when 'now' changes.
 
     return weatherData;
 };
