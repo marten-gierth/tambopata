@@ -92,11 +92,11 @@ export async function getNextSunEventForLocation(locationName) {
     const sunriseTomorrow = DateTime.fromISO(weather.daily.sunrise[1], { zone: locationTimezone });
 
     if (nowInLocation < sunriseToday) {
-        return { icon: '🌅️', time: sunriseToday.toFormat('HH:mm') };
+        return { icon: '🌅️', time: sunriseToday.diff(nowInLocation).toFormat('h:mm') };
     } else if (nowInLocation < sunsetToday) {
-        return { icon: '🌙', time: sunsetToday.toFormat('HH:mm') };
+        return { icon: '🌙', time: sunsetToday.diff(nowInLocation).toFormat('h:mm') };
     } else {
-        return { icon: '🌅', time: sunriseTomorrow.toFormat('HH:mm') };
+        return { icon: '🌅', time: sunriseTomorrow.diff(nowInLocation).toFormat('h:mm') };
     }
 }
 
