@@ -71,6 +71,7 @@ const formatUnit = (value, singular, plural) => {
  */
 const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
     // Initialize state without accessing the window object.
+    // State and useEffect remain the same...
     const [windowWidth, setWindowWidth] = useState(0);
 
     useEffect(() => {
@@ -85,31 +86,29 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
     const styles = {
         container: {
             display: 'grid',
-            gridTemplateColumns: 'auto 1fr auto',
+            gridTemplateColumns: 'auto auto 1fr',
             gridTemplateRows: 'auto auto',
-            gridColumnGap: '0px',
+            gridColumnGap: '10px',
             gridRowGap: '1px',
             fontFamily: 'Arial, sans-serif',
             color: '#fff',
             letterSpacing: '-0.5px',
             maxWidth: '400px',
-            // Aligns left on large screens, centers on small
             margin: windowWidth > 600 ? '10px' : '10px auto',
         },
         cell: {
             padding: '1px',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
         },
         flagCell: {
             gridArea: '1 / 1 / 3 / 2',
             fontSize: '2rem',
+            justifyContent: 'center',
         },
         timeCell: {
             gridArea: '1 / 2 / 2 / 3',
             fontSize: '1.5rem',
-            padding: '0 0 0 10px',
             fontWeight: 'bold',
             justifyContent: 'flex-start',
         },
@@ -124,7 +123,7 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: '5px 10px',
+            paddingTop: '5px',
         },
         weatherSpan: {
             display: 'flex',
@@ -135,16 +134,16 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
 
     return (
         <div style={styles.container}>
-            {/* Cell 1: Flag */}
+            {/* Cell 1: Flag (Column 1) */}
             <div style={{...styles.cell, ...styles.flagCell}}>{flag}</div>
 
-            {/* Cell 2: Time */}
+            {/* Cell 2: Time (Column 2) */}
             <div style={{...styles.cell, ...styles.timeCell}}>{time}</div>
 
-            {/* Cell 3: Name */}
+            {/* Cell 3: Name (Column 3) */}
             <div style={{...styles.cell, ...styles.nameCell}}>{name}</div>
 
-            {/* Cell 4: Sun Event & Weather */}
+            {/* Cell 4: Sun Event & Weather (Spans Columns 2-3) */}
             <div style={{...styles.cell, ...styles.sunWeatherCell}}>
                 <span style={styles.weatherSpan}>
                     {sunEvent?.icon} {sunEvent?.time}
@@ -168,9 +167,11 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
 
         return (
             <>
-                <p style={{fontSize: '17px', margin: '10px'}}>
+                <p style={{fontSize: '17px'}}>
                     ✈️ Back home
                     in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
+                    <br />
+                    {/*↔️ ~ 9,346 km | ⏰ {diffInHours}-hour time difference.*/}
                 </p>
                 <div
                     /*   style={{
