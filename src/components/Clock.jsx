@@ -1,6 +1,6 @@
-import { DateTime } from 'luxon';
-import { useEffect, useState, useMemo } from 'react';
-import { getNextSunEventForLocation, getCurrentWeatherForLocation } from '../services/weatherService.js';
+import {DateTime} from 'luxon';
+import {useEffect, useMemo, useState} from 'react';
+import {getCurrentWeatherForLocation, getNextSunEventForLocation} from '../services/weatherService.js';
 
 // --- Custom Hooks for Logic ---
 /**
@@ -69,11 +69,11 @@ const formatUnit = (value, singular, plural) => {
 /**
  * ✨ UI Component: Renders a single row of location information in columns.
  */
-const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => (
+const LocationRow = ({flag, time, name, sunEvent, currentWeather}) => (
     <>
         {/* Column 1 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            {flag}<span style={{ paddingLeft: '0.5rem' }}>{time}</span>
+        <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem'}}>
+            {flag}<span style={{paddingLeft: '0.5rem'}}>{time}</span>
         </div>
         {/* Column 2 */}
         <div>{name}</div>
@@ -89,16 +89,17 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => (
 
 // --- Main Component ---
 const Clock = () => {
-    const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', { zone: 'America/Lima' }), []);
+    const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'}), []);
     const locations = useMemo(() => ['Tambopata', 'Dresden'], []);
 
-    const { germanyTime, peruTime, diffInHours, diffToBackHome } = useTimeManager(targetDate);
+    const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate);
     const weatherData = useWeatherData(locations);
 
     return (
         <>
-            <p style={{ fontSize: '1.2rem', margin: '1rem 0' }}>
-                ✈️ Back home in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
+            <p style={{fontSize: '1.2rem', margin: '1rem 0'}}>
+                ✈️ Back home
+                in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
             </p>
             <div
                 style={{
@@ -107,7 +108,7 @@ const Clock = () => {
                     gap: '0.5rem 1rem',
                     alignItems: 'center',
                     whiteSpace: 'nowrap',
-                    maxWidth : '400px',
+                    maxWidth: '400px',
                     paddingTop: '1rem',
                 }}
             >
