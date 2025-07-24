@@ -1,6 +1,8 @@
 ---
 import Clock from '../components/Clock.jsx';
 import WorldGlobe from '../components/WorldGlobe.jsx';
+import { getSharedWeatherData } from '../services/weatherService.js'; // Call the service to ensure data is fetched (or retrieved from cache)
+await getSharedWeatherData();
 ---
 
 <html lang="en">
@@ -79,16 +81,18 @@ import WorldGlobe from '../components/WorldGlobe.jsx';
         <WorldGlobe client:only/>
     </div>
     <div class="content">
-        <h1>🌳 Tambopata → <span style="white-space: nowrap;">🏠 Dresden</span>
+        <h1>🌳 Tambopata & <span style="white-space: nowrap;">🏠 Dresden</span>
         </h1>
         <Clock client:load/>
     </div>
 </main>
 <footer>
     <p>
+        Made for Fanny :)<br/>
         <a href="https://martengierth.de/legal/" target="_blank" rel="noopener noreferrer">Legal Notice</a> |
         🌎 Visualization with <a href="https://github.com/vasturiano/three-globe" target="_blank"
-                 rel="noopener noreferrer">three-globe</a>
+                 rel="noopener noreferrer">three-globe</a> |
+        ⛅ Weather data from <a href="https://github.com/open-meteo/open-meteo" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
     </p>
 </footer>
 </body>
