@@ -103,10 +103,12 @@ export async function getNextSunEventForLocation(locationName) {
 /**
  * A helper function to convert WMO weather codes to a display icon.
  * @param {number} weatherCode - The WMO weather code from the API.
+ * @param {boolean} isDay - True if it's currently daytime, false otherwise.
  * @returns {string} An emoji icon representing the weather.
  */
-function getWeatherIcon(weatherCode) {
-    if (weatherCode === 0) return '☀️'; // Clear sky
+function getWeatherIcon(weatherCode, isDay) {
+    // For a clear sky, show ☀️ for day and 🌙 for night.
+    if (weatherCode === 0) return isDay ? '☀️' : '🌙';
     if (weatherCode >= 1 && weatherCode <= 3) return '☁️'; // Mainly clear, partly cloudy, overcast
     if (weatherCode >= 45 && weatherCode <= 48) return '🌫️'; // Fog
     if (weatherCode >= 51 && weatherCode <= 57) return '💧'; // Drizzle
@@ -142,6 +144,11 @@ export async function getCurrentWeatherForLocation(locationName) {
         const locationTimezone = weather.timezone;
         const nowInLocation = DateTime.now().setZone(locationTimezone);
 
+        // Determine if it's day or night to select the correct icon
+        const sunriseToday = DateTime.fromISO(weather.daily.sunrise[0], { zone: locationTimezone });
+        const sunsetToday = DateTime.fromISO(weather.daily.sunset[0], { zone: locationTimezone });
+        const isDay = nowInLocation > sunriseToday && nowInLocation < sunsetToday;
+
         // The API returns hourly data. We format the current time to match the API's time format
         // to find the correct index in the hourly arrays.
         const currentHourISO = nowInLocation.toFormat("yyyy-MM-dd'T'HH':00'");
@@ -159,7 +166,7 @@ export async function getCurrentWeatherForLocation(locationName) {
         // 5. Return the formatted data
         return {
             temperature: Math.round(temperature),
-            icon: getWeatherIcon(weatherCode),
+            icon: getWeatherIcon(weatherCode, isDay),
             precipitation: precipitation
         };
 

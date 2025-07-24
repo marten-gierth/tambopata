@@ -1,7 +1,7 @@
 ---
 import Clock from '../components/Clock.jsx';
 import WorldGlobe from '../components/WorldGlobe.jsx';
-import { getSharedWeatherData } from '../services/weatherService.js'; // Call the service to ensure data is fetched (or retrieved from cache)
+import {getSharedWeatherData} from '../services/weatherService.js'; // Call the service to ensure data is fetched (or retrieved from cache)
 await getSharedWeatherData();
 ---
 
@@ -11,7 +11,7 @@ await getSharedWeatherData();
     <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
     <meta name="viewport" content="width=device-width"/>
     <meta name="generator" content={Astro.generator}/>
-    <title>Tambopata → Dresden</title>
+    <title>Tambopata & Dresden</title>
 </head>
 <style>
     html, body {
@@ -29,6 +29,7 @@ await getSharedWeatherData();
         margin: 0;
         padding: 1rem 0 0 0;
     }
+
     a {
         color: white;
         text-decoration: underline;
@@ -91,8 +92,8 @@ await getSharedWeatherData();
         Made for Fanny :)<br/>
         <a href="https://martengierth.de/legal/" target="_blank" rel="noopener noreferrer">Legal Notice</a> |
         🌎 Visualization with <a href="https://github.com/vasturiano/three-globe" target="_blank"
-                 rel="noopener noreferrer">three-globe</a> |
-        ⛅ Weather data from <a href="https://github.com/open-meteo/open-meteo" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
+                                rel="noopener noreferrer">three-globe</a> |
+        ⛅ Weather from <a href="https://github.com/open-meteo/open-meteo" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
     </p>
 </footer>
 </body>
