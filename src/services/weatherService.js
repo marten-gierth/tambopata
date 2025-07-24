@@ -168,7 +168,7 @@ export async function getCurrentWeatherForLocation(locationName) {
         const diffStr = diff === 0 ? '' : (diff > 0 ? `+${diff}` : `${diff}`);
 
         return {
-            temperature: `${Math.round(temperature)}°C${diffStr ? ` (${diffStr})` : ''}`,
+            temperature: `${Math.round(temperature)}°C${diffStr ? ` (${diffStr}°C)` : ''}`,
             icon: getWeatherIcon(weatherCode, isDay),
             precipitation: precipitation
         };
