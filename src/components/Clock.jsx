@@ -2,18 +2,38 @@ import {DateTime} from 'luxon';
 import {useEffect, useMemo, useState} from 'react';
 import {getCurrentWeatherForLocation, getNextSunEventForLocation} from '../services/weatherService.js';
 
-// --- Custom Hooks for Logic ---
 /**
- * ⚙️ Custom Hook: Manages all time-related state and updates.
+ * ⏲️ Shared Clock Hook: Emits `now` every full minute.
  */
-const useTimeManager = (targetDate) => {
+const useClock = () => {
     const [now, setNow] = useState(() => DateTime.now());
 
     useEffect(() => {
-        const intervalId = setInterval(() => setNow(DateTime.now()), 1000);
-        return () => clearInterval(intervalId);
+        const now = DateTime.now();
+        const msUntilNextMinute = (60 - now.second) * 1000 - now.millisecond;
+
+        let intervalId;
+
+        const timeoutId = setTimeout(() => {
+            setNow(DateTime.now());
+            intervalId = setInterval(() => {
+                setNow(DateTime.now());
+            }, 60 * 1000);
+        }, msUntilNextMinute);
+
+        return () => {
+            clearTimeout(timeoutId);
+            if (intervalId) clearInterval(intervalId);
+        };
     }, []);
 
+    return now;
+};
+
+/**
+ * ⚙️ Custom Hook: Manages all time-related state and updates.
+ */
+const useTimeManager = (targetDate, now) => {
     const germanyTime = useMemo(() => now.setZone('Europe/Berlin'), [now]);
     const peruTime = useMemo(() => now.setZone('America/Lima'), [now]);
 
@@ -31,10 +51,13 @@ const useTimeManager = (targetDate) => {
 /**
  * ⚙️ Custom Hook: Fetches and manages ALL weather data (sun & current) for a list of locations.
  */
-const useWeatherData = (locations) => {
+const useWeatherData = (locations, now) => {
     const [weatherData, setWeatherData] = useState({});
 
     useEffect(() => {
+        let intervalId;
+        let sunIntervalId;
+
         const fetchAllWeatherData = async () => {
             try {
                 const promises = locations.flatMap(loc => [
@@ -54,8 +77,47 @@ const useWeatherData = (locations) => {
                 console.error('Failed to fetch weather data:', error);
             }
         };
-        fetchAllWeatherData();
-    }, [locations]);
+
+        const fetchAllSunData = async () => {
+            try {
+                const promises = locations.map(loc => getNextSunEventForLocation(loc));
+                const results = await Promise.all(promises);
+                setWeatherData(prev => {
+                    const updated = {...prev};
+                    locations.forEach((loc, idx) => {
+                        if (!updated[loc]) updated[loc] = {};
+                        updated[loc].sun = results[idx];
+                    });
+                    return updated;
+                });
+            } catch (error) {
+                console.error('Failed to fetch sun data:', error);
+            }
+        };
+
+        const msUntilNextHour = (60 - now.minute) * 60 * 1000 - now.second * 1000 - now.millisecond;
+        const msUntilNextMinute = (60 - now.second) * 1000 - now.millisecond;
+
+        const timeoutId = setTimeout(() => {
+            fetchAllWeatherData();
+            intervalId = setInterval(fetchAllWeatherData, 60 * 60 * 1000);
+        }, msUntilNextHour);
+
+        const sunTimeoutId = setTimeout(() => {
+            fetchAllSunData();
+            sunIntervalId = setInterval(fetchAllSunData, 60 * 1000);
+        }, msUntilNextMinute);
+
+        fetchAllWeatherData(); // fetch once immediately
+        fetchAllSunData();     // fetch once immediately
+
+        return () => {
+            clearTimeout(timeoutId);
+            clearTimeout(sunTimeoutId);
+            if (intervalId) clearInterval(intervalId);
+            if (sunIntervalId) clearInterval(sunIntervalId);
+        };
+    }, [locations, now]);
 
     return weatherData;
 };
@@ -146,7 +208,7 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
             {/* Cell 4: Sun Event & Weather (Spans Columns 2-3) */}
             <div style={{...styles.cell, ...styles.sunWeatherCell}}>
                 <span style={styles.weatherSpan}>
-                    {sunEvent?.icon} {sunEvent?.time}
+                    {sunEvent?.icon} in {sunEvent?.time} h
                 </span>
                 <span style={styles.weatherSpan}>
                     {currentWeather?.icon}
@@ -158,49 +220,41 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
 };
 
 // --- Main Component ---
-    const Clock = () => {
-        const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'}), []);
-        const locations = useMemo(() => ['Tambopata', 'Dresden'], []);
+const Clock = () => {
+    const now = useClock();
+    const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'}), []);
+    const locations = useMemo(() => ['Tambopata', 'Dresden'], []);
 
-        const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate);
-        const weatherData = useWeatherData(locations);
+    const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate, now);
+    const weatherData = useWeatherData(locations, now);
 
-        return (
-            <>
-                <p style={{fontSize: '17px'}}>
-                    ✈️ Back home
-                    in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
-                    <br />
-                    {/*↔️ ~ 9,346 km | ⏰ {diffInHours}-hour time difference.*/}
-                </p>
-                <div
-                    /*   style={{
-                           display: 'grid',
-                           gridTemplateColumns: 'auto auto auto auto',
-                           gap: '0.5rem 0.25rem',
-                           alignItems: 'center',
-                           whiteSpace: 'nowrap',
-                           maxWidth: '400px',
-                           paddingTop: '0.5rem',
-                       }}*/
-                >
-                    <LocationRow
-                        flag="🇵🇪"
-                        time={peruTime}
-                        name="Tambopata, Peru"
-                        sunEvent={weatherData.Tambopata?.sun}
-                        currentWeather={weatherData.Tambopata?.current}
-                    />
-                    <LocationRow
-                        flag="🇩🇪"
-                        time={germanyTime}
-                        name={`Dresden, Germany`}
-                        sunEvent={weatherData.Dresden?.sun}
-                        currentWeather={weatherData.Dresden?.current}
-                    />
-                </div>
-            </>
-        );
-    };
+    return (
+        <>
+            <p style={{fontSize: '17px'}}>
+                ✈️ Back home
+                in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
+                <br />
+                ↔️ ~ 9,346 km | ⏰ {diffInHours}-hour time difference.
+            </p>
+            <div
+            >
+                <LocationRow
+                    flag="🇵🇪"
+                    time={peruTime}
+                    name="Tambopata, Peru"
+                    sunEvent={weatherData.Tambopata?.sun}
+                    currentWeather={weatherData.Tambopata?.current}
+                />
+                <LocationRow
+                    flag="🇩🇪"
+                    time={germanyTime}
+                    name={`Dresden, Germany`}
+                    sunEvent={weatherData.Dresden?.sun}
+                    currentWeather={weatherData.Dresden?.current}
+                />
+            </div>
+        </>
+    );
+};
 
-    export default Clock;
+export default Clock;
