@@ -283,8 +283,7 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather, precipitation
                     {sunEvent?.icon} in {sunEvent?.time} h
                 </span>
                 <span style={styles.weatherSpan}>
-                    {currentWeather?.icon}
-                    {currentWeather?.temperature != null && ` ${currentWeather.temperature}`}   ☔ {precipitationProbability != null ? `${precipitationProbability}%` : 'N/A'}
+                    {currentWeather?.icon} {currentWeather?.temperature != null && ` ${currentWeather.temperature}`} |  ☔ {precipitationProbability != null ? `${precipitationProbability}%` : 'N/A'}
                 </span>
             </div>
         </div>
