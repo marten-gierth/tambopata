@@ -97,7 +97,7 @@ const Clock = () => {
 
     return (
         <>
-            <p style={{fontSize: '1.2rem', margin: '1rem 0'}}>
+            <p style={{fontSize: '17px', margin: '0.5rem 0'}}>
                 ✈️ Back home
                 in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
             </p>
@@ -105,11 +105,11 @@ const Clock = () => {
                 style={{
                     display: 'grid',
                     gridTemplateColumns: 'auto auto auto auto',
-                    gap: '0.5rem 1rem',
+                    gap: '0.5rem 0.25rem',
                     alignItems: 'center',
                     whiteSpace: 'nowrap',
                     maxWidth: '400px',
-                    paddingTop: '1rem',
+                    paddingTop: '0.5rem',
                 }}
             >
                 <LocationRow
@@ -122,7 +122,7 @@ const Clock = () => {
                 <LocationRow
                     flag="🇩🇪"
                     time={germanyTime}
-                    name={`Dresden, Germany (+${diffInHours}h)`}
+                    name={`Dresden, Germany`}
                     sunEvent={weatherData.Dresden?.sun}
                     currentWeather={weatherData.Dresden?.current}
                 />
