@@ -38,7 +38,7 @@ export async function getSharedWeatherData() {
     cache.fetchPromise = (async () => {
         try {
             const fetchPromises = LOCATIONS.map(location =>
-                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,apparent_temperature,weathercode,precipitation&timezone=auto&forecast_days=2`)
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&daily=sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,apparent_temperature,weathercode,precipitation&timezone=auto&forecast_days=2`)
                     .then(res => res.json())
                     .then(data => ({...location, weather: data}))
             );
