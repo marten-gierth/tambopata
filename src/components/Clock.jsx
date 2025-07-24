@@ -252,7 +252,7 @@ const Clock = () => {
                 ✈️ Back home
                 in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
                 <br />
-                ↔️ ~ 9,346 km | ⏰ {diffInHours}-hour time difference.
+                ↔️ ~ 10,646 km | ⏰ {diffInHours}-hour time difference.
             </p>
             <div
             >
