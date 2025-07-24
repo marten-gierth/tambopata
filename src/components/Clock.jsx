@@ -1,6 +1,6 @@
 import {DateTime} from 'luxon';
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {getCurrentWeatherForLocation, getNextSunEventForLocation} from '../services/weatherService.js';
+import {getCurrentWeatherForLocation, getNextSunEventForLocation, getSharedWeatherData} from '../services/weatherService.js';
 
 
 /**
@@ -68,6 +68,7 @@ const useTimeManager = (targetDate, now) => {
  */
 const useWeatherData = (locations, now) => {
     const [weatherData, setWeatherData] = useState({});
+    const [precipitationProbabilities, setPrecipitationProbabilities] = useState({});
 
     // --- EFFECT 1: For HOURLY data (Current Weather) ---
     // This effect runs only once to set up the hourly timer.
@@ -110,7 +111,6 @@ const useWeatherData = (locations, now) => {
         };
     }, [locations]); // Dependency array ensures this runs only if 'locations' changes
 
-
     // --- EFFECT 2: For MINUTELY data (Sun Events) ---
     // This effect is driven by the 'now' prop from useClock.
     useEffect(() => {
@@ -137,8 +137,62 @@ const useWeatherData = (locations, now) => {
 
     }, [now, locations]); // Dependency array ensures this re-runs when 'now' changes.
 
-    return weatherData;
+    const fetchPrecipitationProbabilities = async () => {
+        try {
+            const promises = locations.map(loc => getTodayPrecipitationProbability(loc));
+            const results = await Promise.all(promises);
+            setPrecipitationProbabilities(prev => {
+                const updated = { ...prev };
+                locations.forEach((loc, idx) => {
+                    updated[loc] = results[idx].maxPrecipitationProbability;
+                });
+                return updated;
+            });
+        } catch (error) {
+            console.error('Failed to fetch precipitation probabilities:', error);
+        }
+    };
+
+    useEffect(() => {
+        let intervalId;
+
+        const scheduleFetch = () => {
+            fetchPrecipitationProbabilities();
+            intervalId = setInterval(fetchPrecipitationProbabilities, 60 * 60 * 1000); // hourly
+        };
+
+        scheduleFetch();
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+        };
+    }, [locations]);
+
+    return { weatherData, precipitationProbabilities };
 };
+
+/**
+ * Fetches and returns today's max precipitation probability (%) for a given location.
+ * @param {string} locationName
+ * @returns {Promise<{maxPrecipitationProbability: number|string, unit: string}>}
+ */
+async function getTodayPrecipitationProbability(locationName) {
+    try {
+        const allWeatherData = await getSharedWeatherData();
+        const locationData = allWeatherData.find(loc => loc.name === locationName);
+
+        if (!locationData || !locationData.weather || !locationData.weather.daily) {
+            console.error(`Weather data for "${locationName}" not found or incomplete.`);
+            return { maxPrecipitationProbability: 'N/A', unit: '%' };
+        }
+
+        const maxProbabilityToday = locationData.weather.daily.precipitation_probability_max[0];
+        return { maxPrecipitationProbability: maxProbabilityToday, unit: '%' };
+    } catch (error) {
+        console.error(`Error retrieving precipitation probability for ${locationName}:`, error);
+        return { maxPrecipitationProbability: 'N/A', unit: '%' };
+    }
+}
 
 // --- Helper & UI Components ---
 const formatUnit = (value, singular, plural) => {
@@ -149,7 +203,7 @@ const formatUnit = (value, singular, plural) => {
 /**
  * ✨ UI Component: Renders a single row of location information in columns.
  */
-const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
+const LocationRow = ({ flag, time, name, sunEvent, currentWeather, precipitationProbability }) => {
     // Initialize state without accessing the window object.
     // State and useEffect remain the same...
     const [windowWidth, setWindowWidth] = useState(0);
@@ -230,7 +284,7 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => {
                 </span>
                 <span style={styles.weatherSpan}>
                     {currentWeather?.icon}
-                    {currentWeather?.temperature != null && ` ${currentWeather.temperature}°C`}
+                    {currentWeather?.temperature != null && ` ${currentWeather.temperature}`}   ☔ {precipitationProbability != null ? `${precipitationProbability}%` : 'N/A'}
                 </span>
             </div>
         </div>
@@ -244,32 +298,47 @@ const Clock = () => {
     const locations = useMemo(() => ['Tambopata', 'Dresden'], []);
 
     const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate, now);
-    const weatherData = useWeatherData(locations, now);
+    const { weatherData, precipitationProbabilities } = useWeatherData(locations, now);
+
+    // FIX: Check if the essential data for both locations has loaded.
+    // This prevents rendering the rows until they have content, avoiding the layout shift.
+    const isDataReady =
+        weatherData.Tambopata?.current && weatherData.Tambopata?.sun &&
+        weatherData.Dresden?.current && weatherData.Dresden?.sun;
 
     return (
         <>
-            <p style={{fontSize: '17px'}}>
+            <p style={{fontSize: '16px'}}>
                 ✈️ Back home
                 in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
                 <br />
-                ↔️ ~ 9,346 km | ⏰ {diffInHours}-hour time difference.
+                ↔️ ~ 10,646 km | ⏰ {diffInHours}-hour time difference.
             </p>
-            <div
-            >
-                <LocationRow
-                    flag="🇵🇪"
-                    time={peruTime}
-                    name="Tambopata, Peru"
-                    sunEvent={weatherData.Tambopata?.sun}
-                    currentWeather={weatherData.Tambopata?.current}
-                />
-                <LocationRow
-                    flag="🇩🇪"
-                    time={germanyTime}
-                    name={`Dresden, Germany`}
-                    sunEvent={weatherData.Dresden?.sun}
-                    currentWeather={weatherData.Dresden?.current}
-                />
+            <div>
+                {isDataReady ? (
+                    <>
+                        <LocationRow
+                            flag="🇵🇪"
+                            time={peruTime}
+                            name="Tambopata, Peru"
+                            sunEvent={weatherData.Tambopata?.sun}
+                            currentWeather={weatherData.Tambopata?.current}
+                            precipitationProbability={precipitationProbabilities.Tambopata}
+                        />
+                        <LocationRow
+                            flag="🇩🇪"
+                            time={germanyTime}
+                            name={`Dresden, Germany`}
+                            sunEvent={weatherData.Dresden?.sun}
+                            currentWeather={weatherData.Dresden?.current}
+                            precipitationProbability={precipitationProbabilities.Dresden}
+                        />
+                    </>
+                ) : (
+                    // A placeholder with a fixed height prevents content below from jumping up.
+                    // Adjust the height to roughly match the final height of the two rows.
+                    <div style={{ height: '140px' }} />
+                )}
             </div>
         </>
     );

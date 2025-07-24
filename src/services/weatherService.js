@@ -1,5 +1,5 @@
-import { DateTime } from 'luxon';
-import { LOCATIONS } from '../config.js';
+import {DateTime} from 'luxon';
+import {LOCATIONS} from '../config.js';
 
 // A simple in-memory cache to minimize API requests.
 const cache = {
@@ -38,9 +38,9 @@ export async function getSharedWeatherData() {
     cache.fetchPromise = (async () => {
         try {
             const fetchPromises = LOCATIONS.map(location =>
-                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&hourly=temperature_2m,weathercode,precipitation&timezone=auto&forecast_days=2`)
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,apparent_temperature,weathercode,precipitation&timezone=auto&forecast_days=2`)
                     .then(res => res.json())
-                    .then(data => ({ ...location, weather: data }))
+                    .then(data => ({...location, weather: data}))
             );
 
             const results = await Promise.all(fetchPromises);
@@ -80,23 +80,23 @@ export async function getNextSunEventForLocation(locationName) {
     // 3. Handle cases where the location isn't found
     if (!locationData || !locationData.weather) {
         console.error(`Weather data for "${locationName}" could not be found.`);
-        return { icon: '❓', time: '--:--' };
+        return {icon: '❓', time: '--:--'};
     }
 
     // 4. Perform the analysis for that single location
-    const { weather } = locationData;
+    const {weather} = locationData;
     const locationTimezone = weather.timezone;
     const nowInLocation = DateTime.now().setZone(locationTimezone);
-    const sunriseToday = DateTime.fromISO(weather.daily.sunrise[0], { zone: locationTimezone });
-    const sunsetToday = DateTime.fromISO(weather.daily.sunset[0], { zone: locationTimezone });
-    const sunriseTomorrow = DateTime.fromISO(weather.daily.sunrise[1], { zone: locationTimezone });
+    const sunriseToday = DateTime.fromISO(weather.daily.sunrise[0], {zone: locationTimezone});
+    const sunsetToday = DateTime.fromISO(weather.daily.sunset[0], {zone: locationTimezone});
+    const sunriseTomorrow = DateTime.fromISO(weather.daily.sunrise[1], {zone: locationTimezone});
 
     if (nowInLocation < sunriseToday) {
-        return { icon: '🌅️', time: sunriseToday.diff(nowInLocation).toFormat('h:mm') };
+        return {icon: '🌅️', time: sunriseToday.diff(nowInLocation).toFormat('h:mm')};
     } else if (nowInLocation < sunsetToday) {
-        return { icon: '🌙', time: sunsetToday.diff(nowInLocation).toFormat('h:mm') };
+        return {icon: '🌙', time: sunsetToday.diff(nowInLocation).toFormat('h:mm')};
     } else {
-        return { icon: '🌅', time: sunriseTomorrow.diff(nowInLocation).toFormat('h:mm') };
+        return {icon: '🌅', time: sunriseTomorrow.diff(nowInLocation).toFormat('h:mm')};
     }
 }
 
@@ -120,6 +120,7 @@ function getWeatherIcon(weatherCode, isDay) {
     if (weatherCode >= 96 && weatherCode <= 99) return '⛈️'; // Thunderstorm with hail
     return '❓'; // Default case
 }
+
 /**
  * Gets the current weather for a single location from the shared data.
  * @param {string} locationName - The name of the location (e.g., "Dresden").
@@ -135,18 +136,18 @@ export async function getCurrentWeatherForLocation(locationName) {
     // 3. Handle cases where the location isn't found
     if (!locationData || !locationData.weather) {
         console.error(`Weather data for "${locationName}" could not be found.`);
-        return { temperature: 'N/A', icon: '❓', precipitation: 'N/A' };
+        return {temperature: 'N/A', icon: '❓', precipitation: 'N/A'};
     }
 
     // 4. Find the current hour's data for that location
     try {
-        const { weather } = locationData;
+        const {weather} = locationData;
         const locationTimezone = weather.timezone;
         const nowInLocation = DateTime.now().setZone(locationTimezone);
 
         // Determine if it's day or night to select the correct icon
-        const sunriseToday = DateTime.fromISO(weather.daily.sunrise[0], { zone: locationTimezone });
-        const sunsetToday = DateTime.fromISO(weather.daily.sunset[0], { zone: locationTimezone });
+        const sunriseToday = DateTime.fromISO(weather.daily.sunrise[0], {zone: locationTimezone});
+        const sunsetToday = DateTime.fromISO(weather.daily.sunset[0], {zone: locationTimezone});
         const isDay = nowInLocation > sunriseToday && nowInLocation < sunsetToday;
 
         // The API returns hourly data. We format the current time to match the API's time format
@@ -156,22 +157,53 @@ export async function getCurrentWeatherForLocation(locationName) {
 
         if (currentIndex === -1) {
             console.error(`Could not find current hour (${currentHourISO}) in data for ${locationName}.`);
-            return { temperature: 'N/A', icon: '❓', precipitation: 'N/A' };
+            return {temperature: 'N/A', icon: '❓', precipitation: 'N/A'};
         }
 
         const temperature = weather.hourly.temperature_2m[currentIndex];
         const weatherCode = weather.hourly.weathercode[currentIndex];
         const precipitation = weather.hourly.precipitation[currentIndex];
+        const apparentTemperature = weather.hourly.apparent_temperature[currentIndex];
+        const diff = Math.round(apparentTemperature) - Math.round(temperature);
+        const diffStr = diff === 0 ? '' : (diff > 0 ? `+${diff}` : `${diff}`);
 
-        // 5. Return the formatted data
         return {
-            temperature: Math.round(temperature),
+            temperature: `${Math.round(temperature)}°C${diffStr ? ` (${diffStr})` : ''}`,
             icon: getWeatherIcon(weatherCode, isDay),
             precipitation: precipitation
         };
 
-    } catch(error) {
+    } catch (error) {
         console.error(`Error processing current weather for ${locationName}:`, error);
-        return { temperature: 'N/A', icon: '❓', precipitation: 'N/A' };
+        return {temperature: 'N/A', icon: '❓', precipitation: 'N/A'};
+    }
+}
+
+/**
+ * Calculates the total precipitation prediction for the next 24 hours for a given location.
+ * @param {string} locationName - The name of the location (e.g., "Dresden").
+ * @returns {Promise<{totalPrecipitation: number, unit: string}>} The total precipitation and its unit.
+ */
+export async function getNext24hPrecipitationProbability(locationName) {
+    const allWeatherData = await getSharedWeatherData();
+    const locationData = allWeatherData.find(loc => loc.name === locationName);
+
+    if (!locationData || !locationData.weather) {
+        console.error(`Weather data for "${locationName}" could not be found.`);
+        return {maxPrecipitationProbability: 'N/A', unit: '%'};
+    }
+
+    try {
+        const {weather} = locationData;
+
+        const maxProbabilityToday = weather.daily.precipitation_probability_max[0];
+
+        return {
+            maxPrecipitationProbability: maxProbabilityToday,
+            unit: '%'
+        };
+    } catch (error) {
+        console.error(`Error retrieving precipitation probability for ${locationName}:`, error);
+        return {maxPrecipitationProbability: 'N/A', unit: '%'};
     }
 }
