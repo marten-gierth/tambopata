@@ -246,30 +246,43 @@ const Clock = () => {
     const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate, now);
     const weatherData = useWeatherData(locations, now);
 
+    // FIX: Check if the essential data for both locations has loaded.
+    // This prevents rendering the rows until they have content, avoiding the layout shift.
+    const isDataReady =
+        weatherData.Tambopata?.current && weatherData.Tambopata?.sun &&
+        weatherData.Dresden?.current && weatherData.Dresden?.sun;
+
     return (
         <>
-            <p style={{fontSize: '17px'}}>
+            <p style={{fontSize: '16px'}}>
                 ✈️ Back home
                 in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
                 <br />
-                ↔️ ~ 10,646 km | ⏰ {diffInHours}-hour time difference.
+                ↔️ ~ 9,346 km | ⏰ {diffInHours}-hour time difference.
             </p>
-            <div
-            >
-                <LocationRow
-                    flag="🇵🇪"
-                    time={peruTime}
-                    name="Tambopata, Peru"
-                    sunEvent={weatherData.Tambopata?.sun}
-                    currentWeather={weatherData.Tambopata?.current}
-                />
-                <LocationRow
-                    flag="🇩🇪"
-                    time={germanyTime}
-                    name={`Dresden, Germany`}
-                    sunEvent={weatherData.Dresden?.sun}
-                    currentWeather={weatherData.Dresden?.current}
-                />
+            <div>
+                {isDataReady ? (
+                    <>
+                        <LocationRow
+                            flag="🇵🇪"
+                            time={peruTime}
+                            name="Tambopata, Peru"
+                            sunEvent={weatherData.Tambopata?.sun}
+                            currentWeather={weatherData.Tambopata?.current}
+                        />
+                        <LocationRow
+                            flag="🇩🇪"
+                            time={germanyTime}
+                            name={`Dresden, Germany`}
+                            sunEvent={weatherData.Dresden?.sun}
+                            currentWeather={weatherData.Dresden?.current}
+                        />
+                    </>
+                ) : (
+                    // A placeholder with a fixed height prevents content below from jumping up.
+                    // Adjust the height to roughly match the final height of the two rows.
+                    <div style={{ height: '140px' }} />
+                )}
             </div>
         </>
     );
