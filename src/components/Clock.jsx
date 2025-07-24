@@ -80,7 +80,10 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather }) => (
         {/* Column 3 */}
         <div>{sunEvent?.icon} {sunEvent?.time}</div>
         {/* Column 4 */}
-        <div>{currentWeather?.icon} {currentWeather?.temperature}°C</div>
+        <div>
+            {currentWeather?.icon}
+            {currentWeather?.temperature != null && ` ${currentWeather.temperature}°C`}
+        </div>
     </>
 );
 
