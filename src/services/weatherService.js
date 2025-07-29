@@ -33,13 +33,16 @@ export async function getSharedWeatherData() {
     console.log("🔥 Fetching new weather data from the API...");
 
     // 3. If no cache and no ongoing fetch, start a new one.
-    // We wrap the logic in an immediately-invoked async function
-    // to store the promise in cache.fetchPromise.
     cache.fetchPromise = (async () => {
         try {
             const fetchPromises = LOCATIONS.map(location =>
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&daily=sunrise,sunset,precipitation_probability_max&hourly=temperature_2m,apparent_temperature,weathercode,precipitation&timezone=auto&forecast_days=2`)
-                    .then(res => res.json())
+                    .then(res => {
+                        if (!res.ok) {
+                            throw new Error(`API request failed with status ${res.status}`);
+                        }
+                        return res.json();
+                    })
                     .then(data => ({...location, weather: data}))
             );
 
@@ -48,16 +51,14 @@ export async function getSharedWeatherData() {
 
             // Store the results in the cache
             cache.data = results;
-            cache.timestamp = Date.now(); // Use a fresh timestamp
+            cache.timestamp = Date.now();
 
             return cache.data;
         } catch (error) {
             console.error("API fetch failed:", error);
-            // In case of error, re-throw it so callers can handle it
             throw error;
         } finally {
-            // IMPORTANT: Clear the promise once it's resolved or rejected.
-            // This allows future calls (e.g., after cache expiry) to trigger a new fetch.
+            // Clear the promise once it's resolved or rejected.
             cache.fetchPromise = null;
         }
     })();
@@ -71,19 +72,14 @@ export async function getSharedWeatherData() {
  * @returns {Promise<{icon: string, time: string}>} An object with the icon and time for the next sun event.
  */
 export async function getNextSunEventForLocation(locationName) {
-    // 1. Get the shared data (from cache or fresh fetch)
     const allWeatherData = await getSharedWeatherData();
-
-    // 2. Find the data for the requested location
     const locationData = allWeatherData.find(loc => loc.name === locationName);
 
-    // 3. Handle cases where the location isn't found
     if (!locationData || !locationData.weather) {
         console.error(`Weather data for "${locationName}" could not be found.`);
         return {icon: '❓', time: '--:--'};
     }
 
-    // 4. Perform the analysis for that single location
     const {weather} = locationData;
     const locationTimezone = weather.timezone;
     const nowInLocation = DateTime.now().setZone(locationTimezone);
@@ -150,13 +146,20 @@ export async function getCurrentWeatherForLocation(locationName) {
         const sunsetToday = DateTime.fromISO(weather.daily.sunset[0], {zone: locationTimezone});
         const isDay = nowInLocation > sunriseToday && nowInLocation < sunsetToday;
 
-        // The API returns hourly data. We format the current time to match the API's time format
-        // to find the correct index in the hourly arrays.
-        const currentHourISO = nowInLocation.toFormat("yyyy-MM-dd'T'HH':00'");
-        const currentIndex = weather.hourly.time.indexOf(currentHourISO);
+        // --- IMPROVEMENT ---
+        // Find the index of the most recent hourly forecast instead of relying on a fragile string match.
+        // This is more robust against clock skew and small delays.
+        const hourlyTimes = weather.hourly.time.map(t => DateTime.fromISO(t, { zone: locationTimezone }));
+        let currentIndex = -1;
+        for (let i = hourlyTimes.length - 1; i >= 0; i--) {
+            if (hourlyTimes[i] <= nowInLocation) {
+                currentIndex = i;
+                break;
+            }
+        }
 
         if (currentIndex === -1) {
-            console.error(`Could not find current hour (${currentHourISO}) in data for ${locationName}.`);
+            console.error(`Could not find a valid current time index for ${locationName}.`);
             return {temperature: 'N/A', icon: '❓', precipitation: 'N/A'};
         }
 
@@ -180,24 +183,23 @@ export async function getCurrentWeatherForLocation(locationName) {
 }
 
 /**
- * Calculates the total precipitation prediction for the next 24 hours for a given location.
+ * --- RENAMED ---
+ * Gets today's maximum precipitation probability for a given location.
  * @param {string} locationName - The name of the location (e.g., "Dresden").
- * @returns {Promise<{totalPrecipitation: number, unit: string}>} The total precipitation and its unit.
+ * @returns {Promise<{maxPrecipitationProbability: number|string, unit: string}>}
  */
-export async function getNext24hPrecipitationProbability(locationName) {
+export async function getTodayPrecipitationProbability(locationName) {
     const allWeatherData = await getSharedWeatherData();
     const locationData = allWeatherData.find(loc => loc.name === locationName);
 
-    if (!locationData || !locationData.weather) {
-        console.error(`Weather data for "${locationName}" could not be found.`);
+    if (!locationData || !locationData.weather || !locationData.weather.daily) {
+        console.error(`Weather data for "${locationName}" not found or incomplete.`);
         return {maxPrecipitationProbability: 'N/A', unit: '%'};
     }
 
     try {
         const {weather} = locationData;
-
         const maxProbabilityToday = weather.daily.precipitation_probability_max[0];
-
         return {
             maxPrecipitationProbability: maxProbabilityToday,
             unit: '%'

@@ -65,15 +65,16 @@ await getSharedWeatherData();
 
     footer {
         position: absolute;
-        bottom: 1rem;
+        bottom: 4px;
         left: 50%;
         transform: translateX(-50%);
-        height: 10px;
         text-align: center;
         font-size: 0.7rem;
         display: flex;
         align-items: center;
         white-space: nowrap;
+        line-height: 1.5;
+    }
 </style>
 <body>
 <main>
@@ -89,10 +90,26 @@ await getSharedWeatherData();
 <footer>
     <p>
         Made for Fanny :) | <a href="https://martengierth.de/legal/" target="_blank" rel="noopener noreferrer">Legal
-        Notice</a> <br/>
-        🌎 Visualization with <a href="https://github.com/vasturiano/three-globe" target="_blank"
-                                rel="noopener noreferrer">three-globe</a> |
+        Notice</a><br/>
         ⛅ Weather from <a href="https://github.com/open-meteo/open-meteo" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
+        is
+        {/* The <a> tag now correctly wraps the <img> tag, making it clickable */}
+        <a
+                href="https://tambopata-dresden.openstatus.dev"
+                target="_blank"
+                rel="noopener noreferrer">
+            <img
+                    src="https://tambopata-dresden.openstatus.dev/badge?theme=light&size=sm"
+                    alt="Website Status"
+                    style={{
+                        height: '20px',
+                        verticalAlign: 'middle'
+                    }}
+            />
+        </a>
+        <br/>
+        🌎 Visualization with <a href="https://github.com/vasturiano/three-globe" target="_blank"
+                                rel="noopener noreferrer">three-globe</a>
     </p>
 </footer>
 </body>

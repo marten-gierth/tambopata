@@ -1,43 +1,38 @@
-import {DateTime} from 'luxon';
-import {useEffect, useMemo, useRef, useState} from 'react';
-import {getCurrentWeatherForLocation, getNextSunEventForLocation, getSharedWeatherData} from '../services/weatherService.js';
+import { DateTime } from 'luxon';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    getCurrentWeatherForLocation,
+    getNextSunEventForLocation,
+    getTodayPrecipitationProbability
+} from '../services/weatherService.js';
 
 
 /**
  * ⏲️ Shared Clock Hook: Emits `now` every full minute.
- *
- * This updated version uses a self-scheduling `setTimeout` loop,
- * a robust pattern that avoids potential drift from `setInterval`.
  */
 const useClock = () => {
     const [now, setNow] = useState(() => DateTime.now());
-    // Use a ref to hold the timeout ID, preventing re-renders from affecting it.
     const timeoutIdRef = useRef(null);
 
     useEffect(() => {
-        // A function that schedules its own next run.
         const scheduleNextTick = () => {
-            // Calculate the milliseconds until the next minute begins.
             const currentNow = DateTime.now();
             const msUntilNextMinute = (60 - currentNow.second) * 1000 - currentNow.millisecond;
 
-            // Set the timeout for the next update.
             timeoutIdRef.current = setTimeout(() => {
                 setNow(DateTime.now());
-                scheduleNextTick(); // Reschedule the *next* tick after this one fires.
+                scheduleNextTick();
             }, msUntilNextMinute);
         };
 
-        // Start the scheduling loop.
         scheduleNextTick();
 
-        // The cleanup function clears the timeout when the component unmounts.
         return () => {
             if (timeoutIdRef.current) {
                 clearTimeout(timeoutIdRef.current);
             }
         };
-    }, []); // The empty array ensures this effect runs only once.
+    }, []);
 
     return now;
 };
@@ -61,138 +56,84 @@ const useTimeManager = (targetDate, now) => {
 };
 
 /**
- * ⚙️ Custom Hook: Manages all weather data with separate update intervals.
- *
- * Current Weather: Fetched hourly.
- * Sun Events: Fetched every minute, driven by the useClock hook.
+ * 🌦️ Custom Hook: Manages all weather data fetching and state.
  */
-const useWeatherData = (locations, now) => {
+const useWeatherManager = (locations, now) => {
     const [weatherData, setWeatherData] = useState({});
-    const [precipitationProbabilities, setPrecipitationProbabilities] = useState({});
 
-    // --- EFFECT 1: For HOURLY data (Current Weather) ---
-    // This effect runs only once to set up the hourly timer.
+    // Effect for HOURLY data (Current Weather & Precipitation)
     useEffect(() => {
         let intervalId;
-
-        const fetchCurrentWeather = async () => {
-            console.log('Fetching CURRENT weather...');
+        const fetchHourlyData = async () => {
+            console.log('Fetching HOURLY data (weather, precipitation)...');
             try {
-                const promises = locations.map(loc => getCurrentWeatherForLocation(loc));
-                const results = await Promise.all(promises);
-                setWeatherData(prev => {
-                    const updated = { ...prev };
+                const weatherPromises = locations.map(loc => getCurrentWeatherForLocation(loc));
+                const precipPromises = locations.map(loc => getTodayPrecipitationProbability(loc));
+
+                const [weatherResults, precipResults] = await Promise.all([
+                    Promise.all(weatherPromises),
+                    Promise.all(precipPromises),
+                ]);
+
+                setWeatherData(prevData => {
+                    const updatedData = JSON.parse(JSON.stringify(prevData));
                     locations.forEach((loc, idx) => {
-                        if (!updated[loc]) updated[loc] = {};
-                        updated[loc].current = results[idx];
+                        if (!updatedData[loc]) updatedData[loc] = {};
+                        updatedData[loc].current = weatherResults[idx];
+                        updatedData[loc].precipitation = precipResults[idx];
                     });
-                    return updated;
+                    return updatedData;
                 });
             } catch (error) {
-                console.error('Failed to fetch current weather:', error);
+                console.error('Failed to fetch hourly weather data:', error);
             }
         };
 
-        // Calculate delay until the next full hour for the first scheduled fetch
         const initialTime = DateTime.now();
-        const msUntilNextHour = (60 - initialTime.minute) * 60 * 1000 - initialTime.second * 1000 - initialTime.millisecond;
+        const msUntilNextHour = (60 - initialTime.minute - 1) * 60 * 1000 + (60 - initialTime.second) * 1000;
 
         const timeoutId = setTimeout(() => {
-            fetchCurrentWeather();
-            intervalId = setInterval(fetchCurrentWeather, 60 * 60 * 1000); // Every hour
-        }, msUntilNextHour);
+            fetchHourlyData();
+            intervalId = setInterval(fetchHourlyData, 60 * 60 * 1000);
+        }, msUntilNextHour > 0 ? msUntilNextHour : 0);
 
-        fetchCurrentWeather(); // Fetch once immediately on mount
+        fetchHourlyData();
 
-        // Cleanup function to clear timers when the component unmounts
         return () => {
             clearTimeout(timeoutId);
             if (intervalId) clearInterval(intervalId);
         };
-    }, [locations]); // Dependency array ensures this runs only if 'locations' changes
+    }, [locations]);
 
-    // --- EFFECT 2: For MINUTELY data (Sun Events) ---
-    // This effect is driven by the 'now' prop from useClock.
+    // Effect for MINUTELY data (Sun Events)
     useEffect(() => {
         const fetchSunData = async () => {
-            console.log('Fetching SUN data...');
+            console.log('Fetching MINUTELY data (sun events)...');
             try {
-                const promises = locations.map(loc => getNextSunEventForLocation(loc));
-                const results = await Promise.all(promises);
-                setWeatherData(prev => {
-                    const updated = { ...prev };
+                const sunPromises = locations.map(loc => getNextSunEventForLocation(loc));
+                const sunResults = await Promise.all(sunPromises);
+
+                setWeatherData(prevData => {
+                    const newWeatherData = { ...prevData };
                     locations.forEach((loc, idx) => {
-                        if (!updated[loc]) updated[loc] = {};
-                        updated[loc].sun = results[idx];
+                        newWeatherData[loc] = {
+                            ...newWeatherData[loc], // Preserves other data (like 'current' weather)
+                            sun: sunResults[idx]    // Adds or updates the 'sun' data
+                        };
                     });
-                    return updated;
+                    return newWeatherData;
                 });
             } catch (error) {
                 console.error('Failed to fetch sun data:', error);
             }
         };
 
-        // This runs every time 'now' from useClock updates, which is every minute.
         fetchSunData();
+    }, [now, locations]);
 
-    }, [now, locations]); // Dependency array ensures this re-runs when 'now' changes.
-
-    const fetchPrecipitationProbabilities = async () => {
-        try {
-            const promises = locations.map(loc => getTodayPrecipitationProbability(loc));
-            const results = await Promise.all(promises);
-            setPrecipitationProbabilities(prev => {
-                const updated = { ...prev };
-                locations.forEach((loc, idx) => {
-                    updated[loc] = results[idx].maxPrecipitationProbability;
-                });
-                return updated;
-            });
-        } catch (error) {
-            console.error('Failed to fetch precipitation probabilities:', error);
-        }
-    };
-
-    useEffect(() => {
-        let intervalId;
-
-        const scheduleFetch = () => {
-            fetchPrecipitationProbabilities();
-            intervalId = setInterval(fetchPrecipitationProbabilities, 60 * 60 * 1000); // hourly
-        };
-
-        scheduleFetch();
-
-        return () => {
-            if (intervalId) clearInterval(intervalId);
-        };
-    }, [locations]);
-
-    return { weatherData, precipitationProbabilities };
+    return weatherData;
 };
 
-/**
- * Fetches and returns today's max precipitation probability (%) for a given location.
- * @param {string} locationName
- * @returns {Promise<{maxPrecipitationProbability: number|string, unit: string}>}
- */
-async function getTodayPrecipitationProbability(locationName) {
-    try {
-        const allWeatherData = await getSharedWeatherData();
-        const locationData = allWeatherData.find(loc => loc.name === locationName);
-
-        if (!locationData || !locationData.weather || !locationData.weather.daily) {
-            console.error(`Weather data for "${locationName}" not found or incomplete.`);
-            return { maxPrecipitationProbability: 'N/A', unit: '%' };
-        }
-
-        const maxProbabilityToday = locationData.weather.daily.precipitation_probability_max[0];
-        return { maxPrecipitationProbability: maxProbabilityToday, unit: '%' };
-    } catch (error) {
-        console.error(`Error retrieving precipitation probability for ${locationName}:`, error);
-        return { maxPrecipitationProbability: 'N/A', unit: '%' };
-    }
-}
 
 // --- Helper & UI Components ---
 const formatUnit = (value, singular, plural) => {
@@ -201,22 +142,32 @@ const formatUnit = (value, singular, plural) => {
 };
 
 /**
- * ✨ UI Component: Renders a single row of location information in columns.
+ * ✨ UI Component: Renders a single location row.
  */
-const LocationRow = ({ flag, time, name, sunEvent, currentWeather, precipitationProbability }) => {
-    // Initialize state without accessing the window object.
-    // State and useEffect remain the same...
+const LocationRow = ({ flag, time, name, locationData }) => {
+    // --- STYLING FIX: Re-introduced window width detection ---
     const [windowWidth, setWindowWidth] = useState(0);
 
     useEffect(() => {
+        // This function updates the state with the current window width.
         const handleResize = () => {
             setWindowWidth(window.innerWidth);
         };
-        handleResize();
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
 
+        // Set the initial width when the component mounts.
+        handleResize();
+
+        // Add event listener to update width on resize.
+        window.addEventListener('resize', handleResize);
+
+        // Cleanup function to remove the event listener.
+        return () => window.removeEventListener('resize', handleResize);
+    }, []); // Empty dependency array ensures this effect runs only once.
+
+    // Safely destructure data, providing empty objects as fallbacks.
+    const { sun, current, precipitation } = locationData || {};
+
+    // Define styles inside the component to access windowWidth.
     const styles = {
         container: {
             display: 'grid',
@@ -280,10 +231,12 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather, precipitation
             {/* Cell 4: Sun Event & Weather (Spans Columns 2-3) */}
             <div style={{...styles.cell, ...styles.sunWeatherCell}}>
                 <span style={styles.weatherSpan}>
-                    {sunEvent?.icon} in {sunEvent?.time} h
+                    {sun ? <>{sun.icon} in {sun.time} h</> : '...'}
                 </span>
                 <span style={styles.weatherSpan}>
-                    {currentWeather?.icon} {currentWeather?.temperature != null && ` ${currentWeather.temperature}`} |  ☔ {precipitationProbability != null ? `${precipitationProbability}%` : 'N/A'}
+                    {current ? <>{current.icon} {current.temperature}</> : '...'}
+                    {' | '}
+                    {precipitation ? <>☔ {precipitation.maxPrecipitationProbability}%</> : '...'}
                 </span>
             </div>
         </div>
@@ -293,17 +246,11 @@ const LocationRow = ({ flag, time, name, sunEvent, currentWeather, precipitation
 // --- Main Component ---
 const Clock = () => {
     const now = useClock();
-    const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', {zone: 'America/Lima'}), []);
+    const targetDate = useMemo(() => DateTime.fromISO('2025-11-18T00:00:00', { zone: 'America/Lima' }), []);
     const locations = useMemo(() => ['Tambopata', 'Dresden'], []);
 
-    const {germanyTime, peruTime, diffInHours, diffToBackHome} = useTimeManager(targetDate, now);
-    const { weatherData, precipitationProbabilities } = useWeatherData(locations, now);
-
-    // FIX: Check if the essential data for both locations has loaded.
-    // This prevents rendering the rows until they have content, avoiding the layout shift.
-    const isDataReady =
-        weatherData.Tambopata?.current && weatherData.Tambopata?.sun &&
-        weatherData.Dresden?.current && weatherData.Dresden?.sun;
+    const { germanyTime, peruTime, diffInHours, diffToBackHome } = useTimeManager(targetDate, now);
+    const weatherData = useWeatherManager(locations, now);
 
     return (
         <>
@@ -314,30 +261,18 @@ const Clock = () => {
                 ↔️ ~ 10,646 km | ⏰ {diffInHours}-hour time difference.
             </p>
             <div>
-                {isDataReady ? (
-                    <>
-                        <LocationRow
-                            flag="🇵🇪"
-                            time={peruTime}
-                            name="Tambopata, Peru"
-                            sunEvent={weatherData.Tambopata?.sun}
-                            currentWeather={weatherData.Tambopata?.current}
-                            precipitationProbability={precipitationProbabilities.Tambopata}
-                        />
-                        <LocationRow
-                            flag="🇩🇪"
-                            time={germanyTime}
-                            name={`Dresden, Germany`}
-                            sunEvent={weatherData.Dresden?.sun}
-                            currentWeather={weatherData.Dresden?.current}
-                            precipitationProbability={precipitationProbabilities.Dresden}
-                        />
-                    </>
-                ) : (
-                    // A placeholder with a fixed height prevents content below from jumping up.
-                    // Adjust the height to roughly match the final height of the two rows.
-                    <div style={{ height: '140px' }} />
-                )}
+                <LocationRow
+                    flag="🇵🇪"
+                    time={peruTime}
+                    name="Tambopata, Peru"
+                    locationData={weatherData.Tambopata}
+                />
+                <LocationRow
+                    flag="🇩🇪"
+                    time={germanyTime}
+                    name="Dresden, Germany"
+                    locationData={weatherData.Dresden}
+                />
             </div>
         </>
     );
