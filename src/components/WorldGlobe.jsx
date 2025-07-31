@@ -215,8 +215,8 @@ export default function DayNightGlobe() {
             materialRef.current = material; // Store material reference
             Globe.globeMaterial(material); // Apply the custom material to the globe
 
-            const CLOUDS_ALT = 0.03;           // Lifts clouds to prevent clipping into mountains
-            const CLOUD_HEIGHT_SCALE = 0.8;    // Controls cloud "puffiness"
+            const CLOUDS_ALT = 0.025;           // Lifts clouds to prevent clipping into mountains
+            const CLOUD_HEIGHT_SCALE = 0.5;    // Controls cloud "puffiness"
             const CLOUDS_OPACITY = 0.5;        // Controls overall cloud transparency
             const CLOUDS_ROTATION_SPEED = 0;
 
