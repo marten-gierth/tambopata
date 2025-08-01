@@ -161,46 +161,86 @@ export default function DayNightGlobe() {
 
         const cloudsShader = {
             vertexShader: `
-        uniform sampler2D cloudsTexture;
-        uniform float cloudHeightScale;
-        varying vec2 vUv;
-        void main() {
-            vUv = uv;
-            
-            // Sample the full color of the texture
-            vec4 cloudTexel = texture2D(cloudsTexture, vUv);
+                uniform sampler2D cloudsTexture;
+                uniform float cloudHeightScale;
+                varying vec2 vUv;
+                varying vec3 vNormal; // Pass normal to fragment shader
 
-            // Calculate luminance (brightness) from the RGB channels.
-            // For a grayscale image, R, G, and B are equal, so we can just use .r
-            float luminance = cloudTexel.r;
+                void main() {
+                    vUv = uv;
+                    vNormal = normalize(normalMatrix * normal); // Calculate and pass the normal
 
-            // Use smoothstep to create a gentler curve for the height transition
-            float height = smoothstep(0.01, 1.0, luminance);
+                    // Sample the full color of the texture
+                    vec4 cloudTexel = texture2D(cloudsTexture, vUv);
 
-            // Displace vertices based on the smoothed height
-            vec3 displacedPosition = position + normal * height * cloudHeightScale;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
-        }
-    `,
+                    // Calculate luminance (brightness) from the RGB channels.
+                    float luminance = cloudTexel.r;
+
+                    // Use smoothstep to create a gentler curve for the height transition
+                    float height = smoothstep(0.01, 1.0, luminance);
+
+                    // Displace vertices based on the smoothed height
+                    vec3 displacedPosition = position + normal * height * cloudHeightScale;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
+                }
+            `,
             fragmentShader: `
-        uniform sampler2D cloudsTexture;
-        uniform float uOpacity; // Uniform for overall opacity
-        varying vec2 vUv;
-        void main() {
-            vec4 cloudColor = texture2D(cloudsTexture, vUv);
-            
-            // Calculate luminance from the RGB values. 
-            // This treats black as 0 and white as 1.
-            float luminance = cloudColor.r;
+                #define PI 3.141592653589793
+                uniform sampler2D cloudsTexture;
+                uniform float uOpacity;
+                uniform vec2 sunPosition;
+                uniform vec2 globeRotation;
+                varying vec2 vUv;
+                varying vec3 vNormal;
 
-            // Discard fragments that are almost fully black to improve performance
-            if (luminance < 0.6) discard;
+                // Helper function from day/night shader
+                float toRad(in float a) {
+                  return a * PI / 180.0;
+                }
 
-            // Set the final color. Use the original texture color for the RGB channels,
-            // and use the calculated luminance multiplied by the overall opacity for the alpha.
-            gl_FragColor = vec4(cloudColor.rgb, luminance * uOpacity);
-        }
-    `
+                // Helper function from day/night shader
+                vec3 Polar2Cartesian(in vec2 c) {
+                  float theta = toRad(90.0 - c.x);
+                  float phi = toRad(90.0 - c.y);
+                  return vec3(
+                    sin(phi) * cos(theta),
+                    cos(phi),
+                    sin(phi) * sin(theta)
+                  );
+                }
+
+                void main() {
+                    // --- Lighting Calculation (from day/night shader) ---
+                    float invLon = toRad(globeRotation.x);
+                    float invLat = -toRad(globeRotation.y);
+
+                    mat3 rotX = mat3(
+                      1, 0, 0,
+                      0, cos(invLat), -sin(invLat),
+                      0, sin(invLat), cos(invLat)
+                    );
+                    mat3 rotY = mat3(
+                      cos(invLon), 0, sin(invLon),
+                      0, 1, 0,
+                      -sin(invLon), 0, cos(invLon)
+                    );
+
+                    vec3 rotatedSunDirection = rotX * rotY * Polar2Cartesian(sunPosition);
+                    float intensity = dot(normalize(vNormal), normalize(rotatedSunDirection));
+
+                    // --- Cloud Color Calculation ---
+                    vec4 cloudColor = texture2D(cloudsTexture, vUv);
+                    float luminance = cloudColor.r;
+
+                    if (luminance < 0.6) discard;
+
+                    // Modulate cloud brightness with a small ambient term so they aren't pitch black
+                    float lightFactor = smoothstep(-0.05, 0.05, intensity) * 0.85 + 0.15;
+
+                    // Set the final color, multiplying the cloud color by the calculated light factor
+                    gl_FragColor = vec4(cloudColor.rgb * lightFactor, luminance * uOpacity);
+                }
+            `
         };
 
         const CLOUDS_ALT = 0.014;           // Lifts clouds to prevent clipping into mountains
@@ -245,6 +285,8 @@ export default function DayNightGlobe() {
                         cloudsTexture: {value: cloudsTexture},
                         cloudHeightScale: {value: CLOUD_HEIGHT_SCALE},
                         uOpacity: {value: 0.0} // Pass opacity to the shader, start at 0 for fade-in
+                        sunPosition: material.uniforms.sunPosition, // Share uniform from main globe
+                        globeRotation: material.uniforms.globeRotation // Share uniform from main globe
                     },
                     vertexShader: cloudsShader.vertexShader,
                     fragmentShader: cloudsShader.fragmentShader,
@@ -301,6 +343,11 @@ export default function DayNightGlobe() {
                     const [lng, lat, currentTime] = sunPosAt(now); // Get sun position based on current real UTC time
                     material.uniforms.sunPosition.value.set(lng, lat);
 
+                    // Also update clouds' lighting only once per minute
+                    if (cloudsRef.current) {
+                        cloudsRef.current.material.uniforms.sunPosition.value.set(lng, lat);
+                    }
+
                     const sunMarker = markers.find(m => m.id === 'sun');
                     if (sunMarker) {
                         sunMarker.lng = lng;
@@ -320,8 +367,7 @@ export default function DayNightGlobe() {
                 if (cloudsRef.current) {
                     // Fade-in animation
                     if (cloudsRef.current.material.uniforms.uOpacity.value < CLOUDS_OPACITY) {
-                        // Reduced value for a slower fade-in
-                        cloudsRef.current.material.uniforms.uOpacity.value += 0.001;
+                        cloudsRef.current.material.uniforms.uOpacity.value += 0.01;
                     }
                 }
 
