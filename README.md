@@ -19,6 +19,6 @@ This project is a real-time dashboard comparing the timezones and weather for Dr
 * **3D Graphics**: Made with **[Three.js](https://threejs.org/)**, using **[`three-globe`](https://github.com/vasturiano/three-globe)** for the Earth shape and **[`GLTFLoader`](https://threejs.org/docs/#examples/en/loaders/GLTFLoader)** for the location pins.
 * **Custom Shaders**: **[GLSL](https://www.khronos.org/opengl/wiki/OpenGL_Shading_Language)** code was written for the day/night lighting effect.
 * **Data Sources**:
-  * **[Open-Meteo API](https://open-meteo.com/)**: Gets the live weather and sun times.
+  * **[Open-Meteo API](https://open-meteo.com/)**: Gets the live weather and sun times. **[Check Status](https://tambopata-dresden.openstatus.dev)**
   * **[EUMETSAT](https://www.eumetsat.int/)**: Provides the cloud images, through the **[Live Cloud Maps](https://github.com/matteason/live-cloud-maps)** project.
 * **Time**: **[Luxon](https://moment.github.io/luxon/)** is used for handling all timezones and dates.
