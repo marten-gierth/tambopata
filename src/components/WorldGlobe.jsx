@@ -284,7 +284,7 @@ export default function DayNightGlobe() {
                     uniforms: {
                         cloudsTexture: {value: cloudsTexture},
                         cloudHeightScale: {value: CLOUD_HEIGHT_SCALE},
-                        uOpacity: {value: 0.0} // Pass opacity to the shader, start at 0 for fade-in
+                        uOpacity: {value: 0.0}, // Pass opacity to the shader, start at 0 for fade-in
                         sunPosition: material.uniforms.sunPosition, // Share uniform from main globe
                         globeRotation: material.uniforms.globeRotation // Share uniform from main globe
                     },
