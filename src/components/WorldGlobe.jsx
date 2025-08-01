@@ -257,31 +257,35 @@ export default function DayNightGlobe() {
             });
 
 
-            function loadPins(scaleFactor = 1) {
+            async function loadPins(scaleFactor = 1) {
                 const loader = new GLTFLoader();
+
+                // 1. Load the model a single time outside the loop
+                const gltf = await loader.loadAsync('assets/worldGlobe/pin.glb');
+                const pinTemplate = gltf.scene;
+
+                // 2. Loop through markers and clone the loaded model
                 markers.forEach(marker => {
-                    loader.load('assets/worldGlobe/pin.glb', gltf => {
-                        const pin = gltf.scene;
+                    // Create a clone for each marker
+                    const pin = pinTemplate.clone();
 
-                        // Get the coordinates object from the three-globe library
-                        const positionObj = globeRef.current.getCoords(marker.lat, marker.lng, 0);
+                    // Get the coordinates object from the three-globe library
+                    const positionObj = globeRef.current.getCoords(marker.lat, marker.lng, 0);
 
-                        // Set the position of the pin.
-                        pin.position.set(positionObj.x, positionObj.y, positionObj.z);
+                    // Set the position of the pin
+                    pin.position.set(positionObj.x, positionObj.y, positionObj.z);
 
-                        // Use pin.position for alignment.
-                        // Since pin.position is a THREE.Vector3, it has the .clone() method.
-                        const up = pin.position.clone().normalize();
-                        const target = new THREE.Vector3(0, 1, 0);
-                        const quaternion = new THREE.Quaternion().setFromUnitVectors(target, up);
-                        pin.quaternion.copy(quaternion);
+                    // Align the pin to be perpendicular to the globe's surface
+                    const up = pin.position.clone().normalize();
+                    const target = new THREE.Vector3(0, 1, 0); // Assuming pin model's "up" is Y-axis
+                    const quaternion = new THREE.Quaternion().setFromUnitVectors(target, up);
+                    pin.quaternion.copy(quaternion);
 
-                        pin.scale.set(2 * scaleFactor, 2 * scaleFactor, 2 * scaleFactor);
+                    // Set scale
+                    pin.scale.set(2 * scaleFactor, 2 * scaleFactor, 2 * scaleFactor);
 
-                        // Important: Add the pin to the Globe instance, not the scene.
-                        // This way, it rotates with the globe.
-                        globeRef.current.add(pin);
-                    });
+                    // Add the cloned pin to the globe
+                    globeRef.current.add(pin);
                 });
             }
 
@@ -312,14 +316,13 @@ export default function DayNightGlobe() {
                 const camGeo = Globe.toGeoCoords(camera.position);
                 material.uniforms.globeRotation.value.set(camGeo.lng, camGeo.lat);
 
-                // Clouds always rotate smoothly and fade in
+                // Clouds fade in
                 if (cloudsRef.current) {
                     // Fade-in animation
                     if (cloudsRef.current.material.uniforms.uOpacity.value < CLOUDS_OPACITY) {
                         // Reduced value for a slower fade-in
                         cloudsRef.current.material.uniforms.uOpacity.value += 0.001;
                     }
-                    cloudsRef.current.rotation.y += CLOUDS_ROTATION_SPEED * Math.PI / 180;
                 }
 
                 renderer.render(scene, camera); // Always render
