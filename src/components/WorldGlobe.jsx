@@ -195,7 +195,7 @@ export default function DayNightGlobe() {
 
         const CLOUDS_ALT = 0.025;           // Lifts clouds to prevent clipping into mountains
         const CLOUD_HEIGHT_SCALE = 0.5;    // Controls cloud "puffiness"
-        const CLOUDS_OPACITY = 0.5;        // Controls overall cloud transparency
+        const CLOUDS_OPACITY = 0.6;        // Controls overall cloud transparency
         const CLOUDS_ROTATION_SPEED = 0;
 
         // Loading Textures and Material Setup
@@ -220,7 +220,7 @@ export default function DayNightGlobe() {
             Globe.globeMaterial(material); // Apply the custom material to the globe
 
             // Load clouds texture asynchronously
-            new THREE.TextureLoader().load('https://clouds.matteason.co.uk/images/2048x1024/clouds-alpha.png', cloudsTexture => {
+            new THREE.TextureLoader().load('https://clouds.matteason.co.uk/images/4096x2048/clouds-alpha.png', cloudsTexture => {
                 // Create Clouds Mesh
                 const Clouds = new THREE.Mesh(
                     new THREE.SphereGeometry(Globe.getGlobeRadius() * (1 + CLOUDS_ALT), 75, 75)
