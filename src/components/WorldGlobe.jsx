@@ -96,7 +96,7 @@ export default function DayNightGlobe() {
           vNormal = normalize(normalMatrix * normal); // Transform normal to view space
           vUv = uv; // Pass UV coordinates
           float height = texture2D(heightTexture, vUv).r; // Get height from texture
-          vec3 displacedPosition = position + normal * height * 3.0; // Displace vertex
+          vec3 displacedPosition = position + normal * height * 1.8; // Displace vertex
           gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0); // Project vertex
         }
       `,
@@ -161,41 +161,51 @@ export default function DayNightGlobe() {
 
         const cloudsShader = {
             vertexShader: `
-                uniform sampler2D cloudsTexture;
-                uniform float cloudHeightScale;
-                varying vec2 vUv;
-                void main() {
-                    vUv = uv;
-                    // Get the raw alpha value from the texture
-                    float rawAlpha = texture2D(cloudsTexture, vUv).a;
+        uniform sampler2D cloudsTexture;
+        uniform float cloudHeightScale;
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            
+            // Sample the full color of the texture
+            vec4 cloudTexel = texture2D(cloudsTexture, vUv);
 
-                    // Use smoothstep to create a gentler curve for the height transition
-                    float height = smoothstep(0.01, 1.0, rawAlpha);
+            // Calculate luminance (brightness) from the RGB channels.
+            // For a grayscale image, R, G, and B are equal, so we can just use .r
+            float luminance = cloudTexel.r;
 
-                    // Displace vertices based on the smoothed height
-                    vec3 displacedPosition = position + normal * height * cloudHeightScale;
-                    gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
-                }
-            `,
+            // Use smoothstep to create a gentler curve for the height transition
+            float height = smoothstep(0.01, 1.0, luminance);
+
+            // Displace vertices based on the smoothed height
+            vec3 displacedPosition = position + normal * height * cloudHeightScale;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
+        }
+    `,
             fragmentShader: `
-                uniform sampler2D cloudsTexture;
-                uniform float uOpacity; // Uniform for overall opacity
-                varying vec2 vUv;
-                void main() {
-                    vec4 cloudColor = texture2D(cloudsTexture, vUv);
-                    
-                    // Discard fragments that are almost fully transparent
-                    if (cloudColor.a < 0.05) discard;
+        uniform sampler2D cloudsTexture;
+        uniform float uOpacity; // Uniform for overall opacity
+        varying vec2 vUv;
+        void main() {
+            vec4 cloudColor = texture2D(cloudsTexture, vUv);
+            
+            // Calculate luminance from the RGB values. 
+            // This treats black as 0 and white as 1.
+            float luminance = cloudColor.r;
 
-                    // Apply the overall opacity
-                    gl_FragColor = vec4(cloudColor.rgb, cloudColor.a * uOpacity);
-                }
-            `
+            // Discard fragments that are almost fully black to improve performance
+            if (luminance < 0.6) discard;
+
+            // Set the final color. Use the original texture color for the RGB channels,
+            // and use the calculated luminance multiplied by the overall opacity for the alpha.
+            gl_FragColor = vec4(cloudColor.rgb, luminance * uOpacity);
+        }
+    `
         };
 
-        const CLOUDS_ALT = 0.025;           // Lifts clouds to prevent clipping into mountains
+        const CLOUDS_ALT = 0.014;           // Lifts clouds to prevent clipping into mountains
         const CLOUD_HEIGHT_SCALE = 0.5;    // Controls cloud "puffiness"
-        const CLOUDS_OPACITY = 0.6;        // Controls overall cloud transparency
+        const CLOUDS_OPACITY = 1;        // Controls overall cloud transparency
         const CLOUDS_ROTATION_SPEED = 0;
 
         // Loading Textures and Material Setup
@@ -220,7 +230,7 @@ export default function DayNightGlobe() {
             Globe.globeMaterial(material); // Apply the custom material to the globe
 
             // Load clouds texture asynchronously
-            new THREE.TextureLoader().load('https://clouds.matteason.co.uk/images/4096x2048/clouds-alpha.png', cloudsTexture => {
+            new THREE.TextureLoader().load('https://clouds.matteason.co.uk/images/4096x2048/clouds.jpg', cloudsTexture => {
                 // Create Clouds Mesh
                 const Clouds = new THREE.Mesh(
                     new THREE.SphereGeometry(Globe.getGlobeRadius() * (1 + CLOUDS_ALT), 75, 75)
