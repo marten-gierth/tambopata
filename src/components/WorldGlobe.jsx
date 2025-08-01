@@ -11,6 +11,7 @@ export default function DayNightGlobe() {
     const mountRef = useRef();
     const materialRef = useRef();
     const globeRef = useRef();
+    const cloudsRef = useRef(); // Ref to store the clouds mesh
     const [utcTime, setUtcTime] = useState(''); // State to store and display UTC time
 
     // useEffect Hook
@@ -119,7 +120,7 @@ export default function DayNightGlobe() {
           float phi = toRad(90.0 - c.y); // Convert latitude to phi angle
           return vec3(
             sin(phi) * cos(theta), // X coordinate
-            cos(phi),             // Y coordinate
+            cos(phi),              // Y coordinate
             sin(phi) * sin(theta) // Z coordinate
           );
         }
@@ -192,14 +193,17 @@ export default function DayNightGlobe() {
             `
         };
 
+        const CLOUDS_ALT = 0.025;           // Lifts clouds to prevent clipping into mountains
+        const CLOUD_HEIGHT_SCALE = 0.5;    // Controls cloud "puffiness"
+        const CLOUDS_OPACITY = 0.6;        // Controls overall cloud transparency
+        const CLOUDS_ROTATION_SPEED = 0;
 
         // Loading Textures and Material Setup
         Promise.all([
             new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-blue-marble.jpg'),
             new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-night.jpg'),
             new THREE.TextureLoader().loadAsync('assets/worldGlobe/earth-topology.png'),
-            new THREE.TextureLoader().loadAsync('https://clouds.matteason.co.uk/images/2048x1024/clouds-alpha.png')
-        ]).then(([dayTexture, nightTexture, heightTexture, cloudsTexture]) => {
+        ]).then(([dayTexture, nightTexture, heightTexture]) => {
             const material = new THREE.ShaderMaterial({
                 uniforms: {
                     dayTexture: {value: dayTexture},
@@ -215,33 +219,33 @@ export default function DayNightGlobe() {
             materialRef.current = material; // Store material reference
             Globe.globeMaterial(material); // Apply the custom material to the globe
 
-            const CLOUDS_ALT = 0.025;           // Lifts clouds to prevent clipping into mountains
-            const CLOUD_HEIGHT_SCALE = 0.5;    // Controls cloud "puffiness"
-            const CLOUDS_OPACITY = 0.5;        // Controls overall cloud transparency
-            const CLOUDS_ROTATION_SPEED = 0;
+            // Load clouds texture asynchronously
+            new THREE.TextureLoader().load('https://clouds.matteason.co.uk/images/4096x2048/clouds-alpha.png', cloudsTexture => {
+                // Create Clouds Mesh
+                const Clouds = new THREE.Mesh(
+                    new THREE.SphereGeometry(Globe.getGlobeRadius() * (1 + CLOUDS_ALT), 75, 75)
+                );
 
-            // Create Clouds Mesh
-            const Clouds = new THREE.Mesh(
-                new THREE.SphereGeometry(Globe.getGlobeRadius() * (1 + CLOUDS_ALT), 75, 75)
-            );
+                // This rotates the clouds -90 degrees around the Y-axis to match the globe.
+                Clouds.rotation.y = -Math.PI / 2;
 
-            // This rotates the clouds -90 degrees around the Y-axis to match the globe.
-            Clouds.rotation.y = -Math.PI / 2;
+                // Apply the final shader material to the clouds
+                Clouds.material = new THREE.ShaderMaterial({
+                    uniforms: {
+                        cloudsTexture: {value: cloudsTexture},
+                        cloudHeightScale: {value: CLOUD_HEIGHT_SCALE},
+                        uOpacity: {value: 0.0} // Pass opacity to the shader, start at 0 for fade-in
+                    },
+                    vertexShader: cloudsShader.vertexShader,
+                    fragmentShader: cloudsShader.fragmentShader,
+                    transparent: true,
+                    depthWrite: false,
+                });
 
-            // Apply the final shader material to the clouds
-            Clouds.material = new THREE.ShaderMaterial({
-                uniforms: {
-                    cloudsTexture: {value: cloudsTexture},
-                    cloudHeightScale: {value: CLOUD_HEIGHT_SCALE},
-                    uOpacity: {value: CLOUDS_OPACITY} // Pass opacity to the shader
-                },
-                vertexShader: cloudsShader.vertexShader,
-                fragmentShader: cloudsShader.fragmentShader,
-                transparent: true,
-                depthWrite: false,
+                Globe.add(Clouds);
+                cloudsRef.current = Clouds; // Store reference for animation
             });
 
-            Globe.add(Clouds);
 
             function loadPins(scaleFactor = 1) {
                 const loader = new GLTFLoader();
@@ -298,8 +302,15 @@ export default function DayNightGlobe() {
                 const camGeo = Globe.toGeoCoords(camera.position);
                 material.uniforms.globeRotation.value.set(camGeo.lng, camGeo.lat);
 
-                // Clouds always rotate smoothly
-                Clouds.rotation.y += CLOUDS_ROTATION_SPEED * Math.PI / 180;
+                // Clouds always rotate smoothly and fade in
+                if (cloudsRef.current) {
+                    // Fade-in animation
+                    if (cloudsRef.current.material.uniforms.uOpacity.value < CLOUDS_OPACITY) {
+                        // Reduced value for a slower fade-in
+                        cloudsRef.current.material.uniforms.uOpacity.value += 0.001;
+                    }
+                    cloudsRef.current.rotation.y += CLOUDS_ROTATION_SPEED * Math.PI / 180;
+                }
 
                 renderer.render(scene, camera); // Always render
                 requestAnimationFrame(animate);
