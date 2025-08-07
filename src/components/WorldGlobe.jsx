@@ -232,13 +232,16 @@ export default function DayNightGlobe() {
                     vec4 cloudColor = texture2D(cloudsTexture, vUv);
                     float luminance = cloudColor.r;
 
-                    if (luminance < 0.6) discard;
+                    if (luminance < 0.01) discard;
 
                     // Modulate cloud brightness with a small ambient term so they aren't pitch black
-                    float lightFactor = smoothstep(-0.05, 0.05, intensity) * 0.85 + 0.15;
+                    float lightFactor = smoothstep(-0.05, 0.05, intensity) * 0.85 + 0.25;
+
+                    // Modulate opacity for the night side, making clouds on the dark side 60% opaque
+                    float opacity_multiplier = smoothstep(-0.1, 0.1, intensity) * 0.3 + 0.7;
 
                     // Set the final color, multiplying the cloud color by the calculated light factor
-                    gl_FragColor = vec4(cloudColor.rgb * lightFactor, luminance * uOpacity);
+                    gl_FragColor = vec4(cloudColor.rgb * lightFactor, luminance * uOpacity * opacity_multiplier);
                 }
             `
         };
@@ -246,7 +249,6 @@ export default function DayNightGlobe() {
         const CLOUDS_ALT = 0.014;           // Lifts clouds to prevent clipping into mountains
         const CLOUD_HEIGHT_SCALE = 0.5;    // Controls cloud "puffiness"
         const CLOUDS_OPACITY = 1;        // Controls overall cloud transparency
-        const CLOUDS_ROTATION_SPEED = 0;
 
         // Loading Textures and Material Setup
         Promise.all([
