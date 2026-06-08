@@ -255,9 +255,6 @@ const Clock = () => {
     return (
         <>
             <p style={{fontSize: '16px'}}>
-                ✈️ Back home
-                in {formatUnit(diffToBackHome.months, 'month', 'months')}, {formatUnit(diffToBackHome.weeks, 'week', 'weeks')}, {formatUnit(diffToBackHome.days, 'day', 'days')}.
-                <br />
                 ↔️ ~ 10,646 km | ⏰ {diffInHours}-hour time difference.
             </p>
             <div>
